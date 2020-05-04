@@ -132,7 +132,7 @@ int tetaK[2],gamaK[2];
 int mea[2][4];	//sampling measurement
 int Xe1[2][4],Xp1[2][4];
 float Pe1[2][4],Pp1[2][4],G1[2][4];
-float var1[2][4]= {{16.0,16.0,0.01,0.01},{16.0,16.0,0.01,0.01}};
+float var1[2][4]= {{90000.0,90000.0,0.01,0.01},{90000.0,90000.0,0.01,0.01}};
 float varProc1= 0.04;
 
 //fuzzy untuk formation control

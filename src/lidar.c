@@ -201,7 +201,7 @@ void find_theBest(uint16_t *input,int *input1,int size,int *measured_angle,int *
 					pos= j;
 				}
 			}
-			if(minVal<= 600){
+			if(minVal<= 1000){
 				out[i]= tmpout_ang[pos];
 				out1[i]= (uint16_t)tmpout_dis[pos];
 			}

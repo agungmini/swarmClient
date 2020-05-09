@@ -98,16 +98,16 @@ void find_robot(int *derivative,uint16_t *distance,int stdev,int mean,int size,f
 			int j=0;
 			while(!((abs(derivative[(i+j)%360]-mean)> (int)(gain*stdev))&&(derivative[(i+j)%360]< 0))){
 				j++;
-				if(j> 45){
+				if(j> 50){
 					break;
 				}
 			}
 
-			if((j<= 45)&&(j>=3)&&(distance[(i+(j/2))%360]> 100)){
+			if((j<= 50)&&(j>=4)&&(distance[(i+(j/2))%360]> 100)){
 				angle[number]= (i+(j/2)+1)%360;
 				dist[number]= distance[(i+(j/2)+1)%360];
 				number++;
-				i= i+j+10;
+				i= i+j+5;
 			}
 			else{
 				i++;
@@ -177,9 +177,10 @@ void find_theBest(uint16_t *input,int *input1,int size,int *measured_angle,int *
 	if(state){
 		//euclidean dist
 		for(int i=0;i<2;i++){
-			int edist[2];
+			int edist[2][2];
 			for(int j=0;j<2;j++){
-				edist[j]=0;
+				edist[0][j]=0;
+				edist[1][j]=0;
 				int delta1= 0;
 				if(state){
 					delta1= abs(tmpout_ang[i]-measured_angle[j]);
@@ -190,18 +191,21 @@ void find_theBest(uint16_t *input,int *input1,int size,int *measured_angle,int *
 							}
 						}
 					}
-				edist[j]= sqrt(pow(delta1,2)+pow(tmpout_dis[i]-measured_dist[j],2));
+				edist[0][j]= sqrt(pow(delta1,2)+pow((tmpout_dis[i])-(measured_dist[j]),2));
+				edist[1][j]= abs(delta1);
 			}
 
 			int pos=0;
-			int minVal= edist[0];
+			int minVal= edist[0][0];
+			int minVal1= edist[1][0];
 			for(int j=0;j<2;j++){
-				if(edist[j]<minVal){
-					minVal= edist[j];
+				if(edist[0][j]<minVal){
+					minVal= edist[0][j];
+					minVal1= edist[1][j];
 					pos= j;
 				}
 			}
-			if(minVal<= 1000){
+			if((minVal1<= 45)&&(minVal<= 100)){
 				out[i]= tmpout_ang[pos];
 				out1[i]= (uint16_t)tmpout_dis[pos];
 			}

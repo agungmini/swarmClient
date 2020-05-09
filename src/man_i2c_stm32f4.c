@@ -3,7 +3,7 @@
 void I2C1_Init(void){
 	I2C1->CR2|= (42UL);
 	I2C1->CCR|= (100UL);
-	I2C1->TRISE|= (10UL);
+	I2C1->TRISE|= (20UL);
 	I2C1->CR1|= (1UL);
 }
 

@@ -53,6 +53,6 @@ void DMA1_Stream1_Init(uint32_t memory_address,uint32_t peripheral_address,uint1
 
 	//DMA1 Stream 1 interrupt
 	NVIC->ISER[0]|= (1UL<<12U);
-	NVIC->IP[3]|= (3UL);	//priority interrupt 3
+	NVIC->IP[3]|= (1UL);	//priority interrupt 1
 }
 

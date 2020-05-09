@@ -35,6 +35,8 @@
 #define add0			0x080E0000	//alamat penyimpanan Ro sebelah kanan
 #define add1			0x080E0004	//alamat penyimpanan Ro sebelah kiri
 #define add2			0x080E0008	//alamat untuk menyimpan ID
+#define add3			0x080E0010	//address untuk menyimpan nilai pengali sebelah kiri
+#define add4			0x080E0014	//address untuk menyimpan nilai pengali sebelah kanan
 #define PI				57.3
 
 //constanta
@@ -67,13 +69,13 @@ char buff3[33];			//buffer untuk tampilan LCD
 char buff4[1024];			//buffer untuk kirim ke esp
 int calib_state=0;		//ini variable untuk state kalibrasi sensor gas
 int calib_state1=0;		//ini variable untuk state kalibrasi kompas
-int menu_state=0;
+int cntMenu=0;
 int cntr=0;
 
 //gas variable
 uint16_t adc[2];		//untuk menyimpan nilai ADC (raw data)
 float ro[2]= {1.0,1.0};	//nilai resistansi ketika dalam udara tanpa pengotor
-uint32_t roTmp[2];
+uint32_t roTmp[2],pengaliTmp[2];
 float roPol0[100];	//polling untuk kalibrasi menentukan nilai Ro
 float roPol1[100];	//polling untuk kalibrasi menentukan nilai Ro
 float ppm[2];		//nilai PPM gas
@@ -82,6 +84,7 @@ float ppmK1[2];
 float dppmK[2];
 int pol= 0;			//indeks untuk menyimpan Ro dalam kalibrasi
 float rs[2];		//nilai resistansi ketika sensor terkena gas dengan pengotor (sensing resistance)
+float pengali[2]= {1.0,1.0};	//pengali nilai ppm
 
 //kalman filter untuk gas
 const int var[2]= {1600,1600};	//variance untuk kalman sensor gas
@@ -132,41 +135,41 @@ int tetaK[2],gamaK[2];
 int mea[2][4];	//sampling measurement
 int Xe1[2][4],Xp1[2][4];
 float Pe1[2][4],Pp1[2][4],G1[2][4];
-float var1[2][4]= {{90000.0,90000.0,0.01,0.01},{90000.0,90000.0,0.01,0.01}};
-float varProc1= 0.04;
+float var1[2][4]= {{5.0,5.0,10.0,10.0},{5.0,5.0,10.0,10.0}};	//error variance of measurement
+float varProc1= 1.0;	//variance of movement
 
 //fuzzy untuk formation control
-int ruleLidar[3][2][9]={{{J,M,J,S,S,D,S,S,S},
-						 {Z,Z,Z,Z,Z,Z,Z,Z,Z}},
-					    {{M,S,D,D,S,D,J,M,J},
-					     {-L,Z,-C,Z,Z,N,Z,Z,N}},
-					    {{M,S,D,D,S,D,J,M,J},
-						 {L,Z,C,Z,Z,-N,Z,Z,-N}}};
-int tmpInferenceLidar[9];	//inference result of fuzzy
+int ruleLidar[3][2][36]={{{J,M,J,S,S,D,S,S,S,J,M,J,S,S,D,S,S,S,J,M,J,S,S,D,S,S,S,J,M,J,S,S,D,S,S,S},
+						 {Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z}},
+					    {{S,S,S,S,S,D,M,M,J,S,S,S,S,S,D,M,M,J,D,D,D,D,S,D,D,M,J,D,D,D,D,S,D,D,M,J},
+					     {Z,Z,Z,Z,Z,Z,-N,Z,-N,Z,Z,Z,Z,Z,Z,-N,Z,-N,-N,-N,-N,-N,Z,N,N,Z,C,-N,-N,-N,-N,-N,-N,-N,-N,-N}},
+					    {{S,S,S,S,S,D,M,M,J,S,S,S,S,S,D,M,M,J,D,D,D,D,S,D,D,M,J,D,D,D,D,S,D,D,M,J},
+						 {Z,Z,Z,Z,Z,Z,N,Z,N,Z,Z,Z,Z,Z,Z,N,Z,N,N,N,N,N,N,N,N,N,N,N,N,N,N,Z,-N,-N,Z,-C}}};
+int tmpInferenceLidar[36];	//inference result of fuzzy
 int sudut_apit,resultan_dist;	//input fuzzy
 int ualpha[3];	//membership function of sudut apit
 int uresultan[3];	//membership function of resultan
+int urad[4];	//membership jarak
 int LidarParam[2];	//output fuzzy lidar
 int lidarSP[3]= {60,600,1035};	//60 derajat dan 600mm
 int lidarE[2];
 
 //kompas dan odometery
-int orientasi,orientasi1,dorientasi;	//orientasi robot
+int orientasi,orientasi1,dorientasi,dorientasi1,dorientasi_step;	//orientasi robot
 int avgFil[5];	//average filter
 int encoder[2];	//0 kiri, 1 kanan
 int cartesianG[3];	//global cartesian chart
-int cartesian[3];	//cartesian step
 int dirS[2]; //0 untuk y dan 1 untuk teta actual, nilai setpoint besar Y dan arah
-int dir_sh[2];	//direction and orientation actual perstep
+int dirSG[2],dir_shG[2];
 int dirE[2];
 int dirI[2];
 int dirD[2];
 int dirE1[2];
 
 //motor control
-int kP[2]= {4,6};
-float kI[2]= {0.1,0.001};
-float kD[2]= {0.3,0.5};
+int kP[2]= {5,6};
+float kI[2]= {0.15,0.25};
+float kD[2]= {1.5,1.5};
 int pid[2];
 
 //metaheuristic
@@ -193,7 +196,7 @@ int main(void){
 	TIM2_Init();
 	TIM1_Init();
 	EXTI_Init();
-	HAL_Delay(100);
+	HAL_Delay(500);
 
 	//wellcome screen////////////////////////////////////////////////////////////////////////////
 	i2c_lcdInit(I2C1,LCD);
@@ -269,15 +272,17 @@ int main(void){
 	roTmp[1]= *(uint32_t*) add1;
 	ro[0]= (float)roTmp[0]/100;
 	ro[1]= (float)roTmp[1]/100;
+	pengaliTmp[0]= *(uint32_t*) add3;
+	pengaliTmp[1]= *(uint32_t*) add4;
+	pengali[0]= (float)pengaliTmp[0]/10;
+	pengali[1]= (float)pengaliTmp[1]/10;
 
 	//reset compass dan pooling untuk nilai awalan/////////////////////////////////////////////
-	for(int i=0;i<5;i++){
-		reset_gy26(I2C1);
-		HAL_Delay(1);
-	}
+	reset_gy26(I2C1);
+	HAL_Delay(100);
 	for(int i=0;i<10;i++){
 		orientasi= (get_angle(I2C1)%360);	//sudut dalam derajat
-		HAL_Delay(10);
+		HAL_Delay(200);
 	}
 	HAL_Delay(1000);
 
@@ -319,59 +324,41 @@ int main(void){
 			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add0,(uint32_t)(ro[0]*100));
 			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add1,(uint32_t)(ro[1]*100));
 			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add2,(uint32_t)(this_robot));
+			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add3,(uint32_t)(pengali[0]*10));
+			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add4,(uint32_t)(pengali[1]*10));
 			HAL_FLASH_Lock();
 			pol= 0;
 		}
-		else if(calib_state1==1){//compass calibrating
+		else if(calib_state1==1){//pengali calibrating
 			i2c_lcdClear(I2C1,LCD);
 			i2c_lcdSetCursor(I2C1,LCD,0,0);
-			i2c_lcdWriteStr(I2C1,LCD,"compass");
-			i2c_lcdSetCursor(I2C1,LCD,1,0);
-			sprintf(buff3,"%d,%d,%d",orientasi,orientasi1,dorientasi);
+			i2c_lcdWriteStr(I2C1,LCD,"l div|    |r div");
+			i2c_lcdSetCursor(I2C1,LCD,0,6);
+			sprintf(buff3,"%d",dorientasi);
 			i2c_lcdWriteStr(I2C1,LCD,buff3);
+			i2c_lcdSetCursor(I2C1,LCD,1,0);
+			sprintf(buff3,"%2.2f |    |%2.2f",pengali[0],pengali[1]);
+			i2c_lcdWriteStr(I2C1,LCD,buff3);
+			if(cntMenu==10){
+				calib_state1++;
+			}
+			cntMenu++;
 		}
-		else if(calib_state1==2){//compass calibrating done
+		else if(calib_state1==2){//pengali calibrating done
 			i2c_lcdClear(I2C1,LCD);
 			i2c_lcdSetCursor(I2C1,LCD,0,4);
 			i2c_lcdWriteStr(I2C1,LCD,"done..!!");
+			//save to address
+			HAL_FLASH_Unlock();
+			FLASH_Erase_Sector(FLASH_SECTOR_11,VOLTAGE_RANGE_3);
+			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add0,(uint32_t)(ro[0]*100));
+			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add1,(uint32_t)(ro[1]*100));
+			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add2,(uint32_t)(this_robot));
+			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add3,(uint32_t)(pengali[0]*10));
+			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add4,(uint32_t)(pengali[1]*10));
+			HAL_FLASH_Lock();
 			HAL_Delay(1000);
 			calib_state1=0;
-		}
-		else if(menu_state==1){//menu for localization
-			i2c_lcdClear(I2C1,LCD);
-			i2c_lcdSetCursor(I2C1,LCD,0,2);
-			i2c_lcdWriteStr(I2C1,LCD,"locate others");
-			i2c_lcdSetCursor(I2C1,LCD,1,5);
-			i2c_lcdWriteStr(I2C1,LCD,"Robots");
-			menu_state++;
-			HAL_Delay(100);
-		}
-		else if(menu_state==2){	//menampilkan posisi kawan robot
-			i2c_lcdClear(I2C1,LCD);
-			i2c_lcdSetCursor(I2C1,LCD,0,0);
-			sprintf(buff3,"A= %4dmm|%3d",gama[0],teta[0]);
-			i2c_lcdWriteStr(I2C1,LCD,buff3);
-			i2c_lcdSetCursor(I2C1,LCD,1,0);
-			sprintf(buff3,"B= %4dmm|%3d",gama[1],teta[1]);
-			i2c_lcdWriteStr(I2C1,LCD,buff3);
-		}
-		else if(menu_state==3){//menu for measuring velocity
-			i2c_lcdClear(I2C1,LCD);
-			i2c_lcdSetCursor(I2C1,LCD,0,0);
-			i2c_lcdWriteStr(I2C1,LCD,"measure velocity");
-			i2c_lcdSetCursor(I2C1,LCD,1,5);
-			i2c_lcdWriteStr(I2C1,LCD,"Robots");
-			menu_state++;
-			HAL_Delay(100);
-		}
-		else if(menu_state==4){	//menampilkan kecepatan relatif kawan robot
-			i2c_lcdClear(I2C1,LCD);
-			i2c_lcdSetCursor(I2C1,LCD,0,0);
-			sprintf(buff3,"A=%d mm/s |%d",abs(veloMag[0]),dir[0]);
-			i2c_lcdWriteStr(I2C1,LCD,buff3);
-			i2c_lcdSetCursor(I2C1,LCD,1,0);
-			sprintf(buff3,"B=%d mm/s |%d",abs(veloMag[1]),dir[1]);
-			i2c_lcdWriteStr(I2C1,LCD,buff3);
 		}
 		else{//default display
 			i2c_lcdClear(I2C1,LCD);
@@ -401,10 +388,8 @@ int main(void){
 		}
 
 		//get compass val/////////////////////////////////////////////////////////////
-		for(int i=0;i<3;i++){
-			orientasi1= get_angle(I2C1)%360;	//sudut dalam derajat
-			HAL_Delay(1);
-		}
+		orientasi1= get_angle(I2C1)%360;	//sudut dalam derajat
+
 		int dorientasi1= orientasi1-orientasi;
 		if(dorientasi1>= 180){
 			dorientasi1= -1*(((360-orientasi1)+orientasi)%360);
@@ -448,25 +433,21 @@ void TIM4_IRQHandler(void){
 
 		//resultant velocity
 		int magV= (int)(encoder[0]+encoder[1])/2;
-		//cartesian step
-		cartesian[0]=cartesian[0]+(int)(magV*sin(dorientasi/PI));
-		cartesian[1]=cartesian[1]+(int)(magV*cos(dorientasi/PI));
-		cartesian[2]=dorientasi;
 		//global cartesian robot position
-		cartesianG[0]= (cartesianG[0]+cartesian[0]);
-		cartesianG[1]= (cartesianG[1]+cartesian[1]);
-		cartesianG[2]= cartesian[2];
+		cartesianG[0]= (cartesianG[0]+(int)(magV*sin(dorientasi/PI)));
+		cartesianG[1]= (cartesianG[1]+(int)(magV*cos(dorientasi/PI)));
+		cartesianG[2]= dorientasi;
 		//robot direction step
-		dir_sh[0]= dir_sh[0]+magV;
-		dir_sh[1]= cartesian[2];
+		dir_shG[0]= dir_shG[0]+magV;
+		dir_shG[1]= dorientasi;
 
 		//sampling gas sementara single conversion,mencoba untuk simultan////////////////////////////
 		adc[0]= ADC_getVal(ADC1);
 		adc[1]= ADC_getVal(ADC2);
 		rs[0]= MQ_Get_Resistance(adc[0],RLoad);
 		rs[1]= MQ_Get_Resistance(adc[1],RLoad);
-		ppm[0]= MQ_Get_PPM((float)rs[0]/ro[0],curve);
-		ppm[1]= MQ_Get_PPM((float)rs[1]/ro[1],curve);
+		ppm[0]= MQ_Get_PPM((float)rs[0]/ro[0],curve)/pengali[0];
+		ppm[1]= MQ_Get_PPM((float)rs[1]/ro[1],curve)/pengali[1];
 
 		//kalman filter dari sensor gas//////////////////////////////////////////////////////////////
 		for(int i=0;i<2;i++){
@@ -562,7 +543,19 @@ void TIM4_IRQHandler(void){
 		lidarE[0]= sudut_apit-lidarSP[0];
 		lidarE[1]= resultan_dist-lidarSP[2];
 
-		if((dir_sh[0]>= dirS[0])){
+		int tmpVal[2];
+		int Val;
+		for(int i=0;i<2;i++){
+			tmpVal[i]= gamaK[i]*cos(tetaK[i]/PI);
+		}
+		if(tmpVal[0]>tmpVal[1]){
+			Val= tetaK[0];
+		}
+		else{
+			Val= tetaK[1];
+		}
+
+		if((dir_shG[0]>= dirSG[0])){
 			GPIOD->ODR^= (1UL<<15U);
 			//fuzzy yang baru untuk gerak menuju gas///////////////////////////////////////
 			uppm[0][0]= fs_trapesium_sikukiri(ppmK[0],0,2.5,6.5,100);
@@ -591,8 +584,13 @@ void TIM4_IRQHandler(void){
 			uresultan[1]= fs_segitiga(lidarE[1],-250,0,250,100);					//uresultan[1]= fs_segitiga(resultan_dist,600,1040,1400,100);
 			uresultan[2]= fs_trapesium_sikukanan(lidarE[1],180,350,3000,100);	//uresultan[2]= fs_trapesium_sikukanan(resultan_dist,1200,1350,10000,100);
 
-			inference_lidar(uresultan,ualpha,tmpInferenceLidar);	//tmpInference should be &
-			center_area_lidar((pos-1),tmpInferenceLidar,9,ruleLidar,LidarParam);	//lidar param should be &
+			urad[0]= fs_trapesium_sikukiri(Val,0,15,20,100);
+			urad[1]= fs_trapesium_sikukanan(Val,350,345,360,100);
+			urad[2]= fs_trapesium_sikukanan(Val,17,20,180,100);
+			urad[3]= fs_trapesium_sikukiri(Val,180,340,343,100);
+
+			inference_lidar(uresultan,ualpha,urad,tmpInferenceLidar);	//tmpInference should be &
+			center_area_lidar((pos-1),tmpInferenceLidar,36,ruleLidar,LidarParam);	//lidar param should be &
 
 			//setpoint declaration//////////////////////////////////////////////////////////
 			dirS[0]= (matrice[0]*GasParam[0])+(matrice[1]*LidarParam[0]);
@@ -605,16 +603,22 @@ void TIM4_IRQHandler(void){
 			else if(dirS[1]<= -60){
 				dirS[1]= -60;
 			}
+			dirSG[0]=dirS[0];
+			dirSG[1]=dirS[1];
 
 			//step reset after fuzzy process///////////////////////////////////////////////
-			cartesian[0]=0;
-			cartesian[1]=0;
-			dir_sh[0]= 0;
+			dir_shG[0]=0;
+			for(int i=0;i<2;i++){
+				dirI[i]=0;
+				dirD[i]=0;
+				dirE1[i]=0;
+			}
 		}
 
 		//perebutan formasi////////////////////////////////////////////////////////////////
 		//menghitung kecepatan para robot
-		measure_velocity(gamaK,gama1,dorientasi,tetaK,teta1,veloMag,dir,tim4state);	//mencari kecepatan tiap2 robot
+		dorientasi_step= dorientasi-dorientasi1;
+		measure_velocity(gamaK,gama1,dorientasi_step,tetaK,teta1,veloMag,dir,tim4state);	//mencari kecepatan tiap2 robot
 		fn[0]= (int)magV;
 		fn[1]= (int)(((gamaK[0]/10)*cos(tetaK[0]/PI))+veloMag[0]);
 		fn[2]= (int)(((gamaK[1]/10)*cos(tetaK[1]/PI))+veloMag[1]);
@@ -640,7 +644,7 @@ void TIM4_IRQHandler(void){
 		}
 
 		//kirim ke ESP setiap 0.2 detik/////////////////////////////////////////////////////
-		sprintf(buff4,"%c;%6d;%6d;%4d;%3d;%3d;%3d;%3d;%4d;%4d;%9d;%9d;%3d;%4d;%3d;%4d;%4d;%4d;%4d;%3d",id1,(int)(ppmK[0]*10),(int)(ppmK[1]*10),dorientasi,dirS[0],dirS[1],cartesian[0],cartesian[1],pid[0],pid[1],cartesianG[0],cartesianG[1],tetaK[0],gamaK[0],tetaK[1],gamaK[1],fn[0],fn[1],fn[2],sudut_apit);
+		sprintf(buff4,"%c;%6d;%6d;%4d;%3d;%3d;%3d;%3d;%4d;%4d;%9d;%9d;%3d;%4d;%3d;%4d;%4d;%4d;%4d;%3d",id1,(int)(ppmK[0]*10),(int)(ppmK[1]*10),dorientasi,dirSG[0],dirSG[1],dir_shG[0],dir_shG[1],pid[0],pid[1],cartesianG[0],cartesianG[1],tetaK[0],gamaK[0],tetaK[1],gamaK[1],fn[0],fn[1],fn[2],sudut_apit);
 		send_udp(USART2,ID,buff4);
 
 		//akhir dari satu subroutine dengan menshift nilai//////////////////////////////////
@@ -651,6 +655,7 @@ void TIM4_IRQHandler(void){
 			gama1[i]= gamaK[i];
 			ppmK1[i]= ppmK[i];
 		}
+		dorientasi1= dorientasi;
 
 		TIM2->EGR|= (1UL);
 		TIM1->EGR|= (1UL);
@@ -674,7 +679,7 @@ void DMA1_Stream1_IRQHandler(void){
 		int stdev,mean;
 		derivate_graph(dist1,ddist,360,&stdev,&mean);	//turunan graph
 		find_robot(ddist,dist1,stdev,mean,360,1,shadow_teta,shadow_gama);	//shadow teta and shadow gama should be &
-		find_theBest(shadow_gama,shadow_teta,360,tetaK,gamaK,teta,gama,limit,tim4state);	//shadow teta1 and shadow gama1 should be &
+		find_theBest(shadow_gama,shadow_teta,360,teta1,gama1,teta,gama,limit,tim4state);	//shadow teta1 and shadow gama1 should be &
 
 		//menghapus temporary variable///////////////////////////////////////////////////////////////
 		memset(liBuff,0,sizeof(liBuff));
@@ -704,32 +709,50 @@ void TIM5_IRQHandler(void){		//timer 5 interrupt subroutine setiap 1 detik sekal
 void EXTI0_IRQHandler(void){	//subroutine interrupt untuk kalibrasi sensor MQ
 	if(EXTI->PR&(1UL)){
 		calib_state= calib_state+1;
-		menu_state=0;
 		calib_state1=0;
 		EXTI->PR|= (1UL);
 	}
 }
 
-void EXTI1_IRQHandler(void){	//untuk kalibrasi kompas
+void EXTI1_IRQHandler(void){	//diganti untuk menaikkan pengali sebelah kanan
 	if(EXTI->PR&(2UL)){
-		TIM1->CNT=0;
-		calib_state1=calib_state1+1;
-		menu_state=0;
+		if(calib_state1==0){
+			calib_state1=1;
+			cntMenu= 0;
+		}
+		else{
+			calib_state1=1;
+			cntMenu= 0;
+			pengali[1]= (pengali[1]+0.2);
+			if(pengali[1]>7.0){
+				pengali[1]= 1.0;
+			}
+		}
 		calib_state=0;
 		EXTI->PR|= (1UL<<1U);
 	}
 }
 
-void EXTI2_IRQHandler(void){	//subroutine untuk melihat posisi robot lain dan melihat kecepatan robot lain
+void EXTI2_IRQHandler(void){	//diganti dengan menaikkan pengali sebelah kiri
 	if(EXTI->PR&(4UL)){
-		menu_state= (menu_state+1)%5;
+		if(calib_state1==0){
+			calib_state1=1;
+			cntMenu= 0;
+		}
+		else{
+			calib_state1=1;
+			cntMenu= 0;
+			pengali[0]= (pengali[0]+0.2);
+			if(pengali[0]>7.0){
+				pengali[0]= 1.0;
+			}
+		}
 		calib_state=0;
-		calib_state1=0;
 		EXTI->PR|= (1UL<<2U);
 	}
 }
 
-void EXTI3_IRQHandler(void){	//belum terpakai
+void EXTI3_IRQHandler(void){	//setting ID
 	if(EXTI->PR&(8UL)){
 		shadowID= (shadowID+1)%3;
 		this_robot= shadowID+1;
@@ -747,6 +770,8 @@ void EXTI3_IRQHandler(void){	//belum terpakai
 		HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add0,(uint32_t)(ro[0]*100));
 		HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add1,(uint32_t)(ro[1]*100));
 		HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add2,(uint32_t)(this_robot));
+		HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add3,(uint32_t)(pengali[0]*10));
+		HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add4,(uint32_t)(pengali[1]*10));
 		HAL_FLASH_Lock();
 
 		EXTI->PR|= (1UL<<3U);
@@ -758,13 +783,18 @@ void TIM6_DAC_IRQHandler(void){		//timer 6 untuk PID kontrol kecepatan roda kana
 
 		//find error////////////////////////////////////////////////////////////////////////
 		for(int i=0;i<2;i++){
-			dirE[i]= dirS[i]-dir_sh[i];
+			dirE[i]= dirSG[i]-dir_shG[i];
 		}
+
 		//find integrate error and derivative error////////////////////////////////////////
 		for(int i=0;i<2;i++){
 			dirI[i]= dirI[i]+dirE[i];
 			dirD[i]= dirE1[i]-dirE[i];
 		}
+
+		//sprintf(buff4,"%d;%d;%d;%d;%d;%d",dirE[0],dirE[1],dirI[0],dirI[1],dirD[0],dirD[1]);
+		//send_udp(USART2,ID,buff4);
+
 		//0 kiri, 1 kanan untuk PID////////////////////////////////////////////////////////
 		int yaxis[2];
 		yaxis[0]= (kP[0]*dirE[0])+(kI[0]*dirI[0])+(kD[0]*dirD[0]);

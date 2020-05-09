@@ -104,29 +104,31 @@ void center_area(int *inference_result,int size,int rule[][81],int *output){
 		mius[1]= mius[1]+(inference_result[i]*rule[1][i]);
 		miu=miu+inference_result[i];
 	}
-	output[0]= mius[0]/miu;
-	output[1]= mius[1]/miu;
+	output[0]= mius[0]/(miu+1);
+	output[1]= mius[1]/(miu+1);
 }
 
-void inference_lidar(int *param1,int *param2,int *output){
+void inference_lidar(int *param1,int *param2,int *param3,int *output){
 	int x=0;
-	for(int i=0;i<3;i++){
+	for(int i=0;i<4;i++){
 		for(int j=0;j<3;j++){
-			output[x]=0;
-			if((param1[i]!=0)&&(param2[j]!=0)){
-				if(param1[i]<param2[j]){
-					output[x]= param1[i];
+			for(int k=0;k<3;k++){
+				output[x]=0;
+				if((param1[j]!=0)&&(param2[k]!=0)&&(param3[i]!=0)){
+					int a;
+					if(param1[j]<param2[k]){a= param1[j];}
+					else{a= param2[k];}
+
+					if(param3[i]< a){output[x]= param3[i];}
+					else{output[x]= a;}
 				}
-				else{
-					output[x]= param2[j];
-				}
+				x++;
 			}
-			x++;
 		}
 	}
 }
 
-void center_area_lidar(int pos,int *inference_result,int size,int rule[][2][9],int *output){
+void center_area_lidar(int pos,int *inference_result,int size,int rule[][2][36],int *output){
 	int miu;
 	int mius[2];
 	miu=0;
@@ -137,8 +139,8 @@ void center_area_lidar(int pos,int *inference_result,int size,int rule[][2][9],i
 		mius[1]=mius[1]+(inference_result[i]*rule[pos][1][i]);
 		miu=miu+inference_result[i];
 	}
-	output[0]= mius[0]/miu;
-	output[1]= mius[1]/miu;
+	output[0]= mius[0]/(miu+1);
+	output[1]= mius[1]/(miu+1);
 }
 
 void inference_avoidance(int *left,int *right,int *output_inference){

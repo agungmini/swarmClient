@@ -136,7 +136,7 @@ int mea[2][4];	//sampling measurement
 int Xe1[2][4],Xp1[2][4];
 float Pe1[2][4],Pp1[2][4],G1[2][4];
 float var1[2][4]= {{5.0,5.0,10.0,10.0},{5.0,5.0,10.0,10.0}};	//error variance of measurement
-float varProc1= 1.0;	//variance of movement
+float varProc1[2][4]= {{0.5,0.5,0.1,0.1},{0.5,0.5,0.1,0.1}};	//variance of movement
 
 //fuzzy untuk formation control
 int ruleLidar[3][2][36]={{{J,M,J,S,S,D,S,S,S,J,M,J,S,S,D,S,S,S,J,M,J,S,S,D,S,S,S,J,M,J,S,S,D,S,S,S},
@@ -505,7 +505,7 @@ void TIM4_IRQHandler(void){
 				else{
 					Xp1[i][j]= Xe1[i][j];
 				}
-				Pp1[i][j]= Pe1[i][j]+varProc1;
+				Pp1[i][j]= Pe1[i][j]+varProc1[i][j];
 			}
 		}
 		//estimate
@@ -558,12 +558,12 @@ void TIM4_IRQHandler(void){
 		if((dir_shG[0]>= dirSG[0])){
 			GPIOD->ODR^= (1UL<<15U);
 			//fuzzy yang baru untuk gerak menuju gas///////////////////////////////////////
-			uppm[0][0]= fs_trapesium_sikukiri(ppmK[0],0,2.5,6.5,100);
-			uppm[0][1]= fs_segitiga(ppmK[0],3.4,40.5,70,100);
-			uppm[0][2]= fs_trapesium_sikukanan(ppmK[0],35.4,100.5,20000,100);
-			uppm[1][0]= fs_trapesium_sikukiri(ppmK[1],0,2.5,6.5,100);
-			uppm[1][1]= fs_segitiga(ppmK[1],3.4,40.5,70,100);
-			uppm[1][2]= fs_trapesium_sikukanan(ppmK[1],35.4,100.5,20000,100);
+			uppm[0][0]= fs_trapesium_sikukiri(ppmK[0],0,40,60,100);
+			uppm[0][1]= fs_segitiga(ppmK[0],50,350,720,100);
+			uppm[0][2]= fs_trapesium_sikukanan(ppmK[0],500,800,20000,100);
+			uppm[1][0]= fs_trapesium_sikukiri(ppmK[1],0,40,60,100);
+			uppm[1][1]= fs_segitiga(ppmK[1],50,350,720,100);
+			uppm[1][2]= fs_trapesium_sikukanan(ppmK[1],500,800,20000,100);
 
 			udppm[0][0]= fs_trapesium_sikukiri(dppmK[0],-20000,-38.5,0,100);
 			udppm[0][1]= fs_segitiga(dppmK[0],-55.5,0,55.5,100);
@@ -619,9 +619,9 @@ void TIM4_IRQHandler(void){
 		//menghitung kecepatan para robot
 		dorientasi_step= dorientasi-dorientasi1;
 		measure_velocity(gamaK,gama1,dorientasi_step,tetaK,teta1,veloMag,dir,tim4state);	//mencari kecepatan tiap2 robot
-		fn[0]= (int)magV;
-		fn[1]= (int)(((gamaK[0]/10)*cos(tetaK[0]/PI))+veloMag[0]);
-		fn[2]= (int)(((gamaK[1]/10)*cos(tetaK[1]/PI))+veloMag[1]);
+		fn[0]= (int)magV*5;
+		fn[1]= (int)(((gamaK[0]/10)*cos(tetaK[0]/PI))+(veloMag[0]*5));
+		fn[2]= (int)(((gamaK[1]/10)*cos(tetaK[1]/PI))+(veloMag[1]*5));
 		if(meta){
 			if((fn[0]>fn[1])&&(fn[0>fn[2]])){
 				pos= 1;

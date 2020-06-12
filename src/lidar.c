@@ -123,6 +123,7 @@ void find_theBest(uint16_t *input,int *input1,int size,int *measured_angle,int *
 	int n=0;
 	int tmpout_ang[2];
 	int tmpout_dis[2];
+	int index[2] ;
 
 	while((input[n]!=0)&(n<360)){
 		n++;
@@ -203,11 +204,22 @@ void find_theBest(uint16_t *input,int *input1,int size,int *measured_angle,int *
 					minVal= edist[0][j];
 					minVal1= edist[1][j];
 					pos= j;
+					index[i]= pos;
 				}
 			}
-			if((minVal1<= 45)&&(minVal<= 100)){
-				out[i]= tmpout_ang[pos];
-				out1[i]= (uint16_t)tmpout_dis[pos];
+			if((minVal1<= 45)&&(minVal<= 300)){
+				if(i==0){
+					out[i]= tmpout_ang[pos];
+					out1[i]= (uint16_t)tmpout_dis[pos];
+				}
+				else if(i==1 && index[1]!= index[0]){
+					out[i]= tmpout_ang[pos];
+					out1[i]= (uint16_t)tmpout_dis[pos];
+				}
+				else if(i== 1 && index[1]==index[0]){
+					out[i]= tmpout_ang[1-pos];
+					out1[i]= (uint16_t)tmpout_dis[1-pos];
+				}
 			}
 			else{
 				out[i]= measured_angle[i];

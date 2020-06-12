@@ -83,9 +83,13 @@ void i2c_lcdInit(I2C_TypeDef* i2cx,uint8_t address){
 	i2c_lcdWrite8bit(i2cx,address,0x20,0);
 	HAL_Delay(1);
 	i2c_lcdCommand(i2cx,address,MODE4BIT|MODE2LINE|MODE5DOTS);
+	HAL_Delay(1);
 	i2c_lcdCommand(i2cx,address,DPYOFF);
+	HAL_Delay(1);
 	i2c_lcdClear(i2cx,address);
+	HAL_Delay(1);
 	i2c_lcdCommand(i2cx,address,INC);
+	HAL_Delay(1);
 	i2c_lcdCommand(i2cx,address,DPYON);
 	HAL_Delay(1000);
 }

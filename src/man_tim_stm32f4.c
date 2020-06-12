@@ -3,12 +3,12 @@
 void TIM4_Init(void){
 	TIM4->CR1|= (1UL<<7U)|(1UL<<2U); //no prescale, ARR buffered,count up,overflow generate interrupt
 	TIM4->DIER|= (1UL);	//update interrupt enable
-	TIM4->PSC= (4000UL); //prescale 84MHz to 5Hz
+	TIM4->PSC= (4000UL); //prescale 84MHz to 5Hz as fs gas sensing
 	TIM4->ARR= (4100UL);
 	TIM4->CR1|= (1UL); //counter enable
 
 	//set interrupt untuk timer4
-	NVIC->ISPR[0]|= (1UL<<30U); //set pending interrupt
+	//NVIC->ISPR[0]|= (1UL<<30U); //set pending interrupt
 	NVIC->IP[7]|= (8UL<<16U);	//set priority 8
 	NVIC->ISER[0]|= (1UL<<30U);	//enable NVIC for timer4 global interrupt
 }
@@ -21,7 +21,7 @@ void TIM5_Init(void){
 	TIM5->CR1|= (1UL); //counter enable
 
 	//set interrupt untuk timer5
-	NVIC->ISPR[1]|= (1UL<<(50%32));
+	//NVIC->ISPR[1]|= (1UL<<(50%32));
 	NVIC->IP[12]|= (9UL<<16U);
 	NVIC->ISER[1]|= (1UL<<(50%32));
 }
@@ -29,12 +29,12 @@ void TIM5_Init(void){
 void TIM6_Init(void){
 	TIM6->CR1|= (1UL<<7U)|(1UL<<2U);
 	TIM6->DIER|= (1UL);
-	TIM6->PSC= (1000UL);	//prescale menjadi 100Hz
-	TIM6->ARR= (840UL);
+	TIM6->PSC= (1000UL);	//prescale menjadi 250Hz
+	TIM6->ARR= (336UL);
 	//TIM6->CR1|= (1UL);
 
 	//set interrupt untuk timer 6
-	NVIC->ISPR[1]|= (1UL<<(54%32));
+	//NVIC->ISPR[1]|= (1UL<<(54%32));
 	NVIC->IP[13]|= (10UL<<5U); //interrupt priority to 10
 	NVIC->ISER[1]|= (1UL<<(54%32));
 }

@@ -67,34 +67,28 @@ int fs_kotak(int x,int lower,int upper,int Val){
 	}
 }
 
-void inference(int param1[][3],int param2[][3],int *output){
+void inference(int *param1,int *param2,int *param3,int *output){
 	int x=0;
 	for(int i=0;i<3;i++){
 		for(int j=0;j<3;j++){
-			for(int k=0;k<3;k++){
-				for(int l=0;l<3;l++){
-					output[x]=0;
-					if((param1[0][i]!=0)&&(param1[1][j]!=0)&&(param2[0][k]!=0)&&(param2[1][l]!=0)){
-						int a=0;
-						int b=0;
+			for(int k=0;k<7;k++){
+				output[x]=0;
+				if((param1[i]!=0)&&(param2[j]!=0)&&(param3[k]!=0)){
+					int a=0;
 
-						if(param1[0][i]<param1[1][j]){a= param1[0][i];}
-						else{a= param1[1][j];}
+					if(param1[i]<param2[j]){a= param1[i];}
+					else{a= param2[j];}
 
-						if(param2[0][k]<param2[1][l]){b= param2[0][k];}
-						else{b= param2[1][l];}
-
-						if(a<b){output[x]= a;}
-						else{output[x]= b;}
-					}
-					x++;
+					if(a<param3[k]){output[x]= a;}
+					else{output[x]= param3[k];}
 				}
+				x++;
 			}
 		}
 	}
 }
 
-void center_area(int *inference_result,int size,int rule[][81],int *output){
+void center_area(int *inference_result,int size,int rule[][63],int *output){
 	int miu=0;
 	int mius[2];
 	mius[0]=0;

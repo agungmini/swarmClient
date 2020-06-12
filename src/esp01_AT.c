@@ -1,6 +1,6 @@
 #include <esp01_AT.h>
 
-char buff[100];
+char buff[64];
 
 void esp_restart(USART_TypeDef* USARTx){
 	sprintf(buff,"AT+RST%c%c",0x0D,0x0A);
@@ -67,6 +67,14 @@ void send_udp(USART_TypeDef* USARTx,uint8_t ID,const char *ptr){
 	while(UART_getChar(USARTx)!='>');
 
 	sprintf(buff,"%s",ptr);
+	UART_sendStr(USARTx,buff);
+
+	while(UART_getChar(USARTx)!='O'); //wait until OK received
+	while(UART_getChar(USARTx)!='K');
+}
+
+void disable_echo(USART_TypeDef* USARTx){
+	sprintf(buff,"ATE0%c%c",0x0D,0x0A);
 	UART_sendStr(USARTx,buff);
 
 	while(UART_getChar(USARTx)!='O'); //wait until OK received

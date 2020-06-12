@@ -51,7 +51,7 @@ char mask[13]= "255.255.255.0";
 const int port= 4210;	//port
 const uint16_t limit= 3000;	//maximum distance lidar in mm
 
-float curve[3]= {-1.7,0.6,4};	//kurva untuk MQ2
+float curve[3]= {-7.33,3.0,2.3};	//kurva untuk MQ2
 const uint8_t LCD= PCF8574;	//alamat device LCD
 const uint8_t LCD1= PCF8574A;	//alamat device LCD
 
@@ -66,11 +66,13 @@ char warn= ' ';
 //global variable
 char buff[33];			//buffer untuk tampilan kirim UART
 char buff3[33];			//buffer untuk tampilan LCD
-char buff4[1024];			//buffer untuk kirim ke esp
-int calib_state=0;		//ini variable untuk state kalibrasi sensor gas
-int calib_state1=0;		//ini variable untuk state kalibrasi kompas
-int cntMenu=0;
-int cntr=0;
+char buff4[113];			//kirim data ke ESP
+char buffterima[3];
+
+uint8_t calib_state=0;		//ini variable untuk state kalibrasi sensor gas
+uint8_t calib_state1=0;		//ini variable untuk state kalibrasi kompas
+uint8_t cntMenu=0;
+uint8_t brdcst=0;
 
 //gas variable
 uint16_t adc[2];		//untuk menyimpan nilai ADC (raw data)
@@ -80,9 +82,10 @@ float roPol0[100];	//polling untuk kalibrasi menentukan nilai Ro
 float roPol1[100];	//polling untuk kalibrasi menentukan nilai Ro
 float ppm[2];		//nilai PPM gas
 float ppmK[2];		//nilai PPM gas after kalman
-float ppmK1[2];
-float dppmK[2];
-int pol= 0;			//indeks untuk menyimpan Ro dalam kalibrasi
+float tmpPPM[2];
+float dppmK;
+float gasFuzzIn[3];	//index 0 untuk resultan gas concentration,1 untuk beda konsentrasi kiri dan kanan, 2 untuk besar perubahan resultan
+int pol= 0,nPol= 100;			//indeks untuk menyimpan Ro dalam kalibrasi
 float rs[2];		//nilai resistansi ketika sensor terkena gas dengan pengotor (sensing resistance)
 float pengali[2]= {1.0,1.0};	//pengali nilai ppm
 
@@ -97,27 +100,20 @@ float Xe[2]= {0.0,0.0};
 float varProc= 10.0;
 
 //fuzzy rule untuk gas
-int ruleGas[2][81]={{S,D,D,D,S,D,D,D,M,
-					 D,D,D,D,D,D,D,D,M,
-					 D,D,D,D,M,M,D,M,M,
-					 D,D,D,D,D,D,D,D,M,
-					 D,D,M,D,M,M,M,M,J,
-					 M,M,M,M,J,J,M,J,J,
-					 D,D,D,D,D,D,D,D,M,
-					 M,M,M,M,J,J,M,J,J,
-					 M,M,M,M,J,J,M,J,J},		//sb y
-				    {Z,N,C,-N,Z,N,-C,-N,Z,
-				     N,N,C,Z,N,N,Z,Z,N,
-				     N,N,L,Z,N,C,Z,Z,N,
-				     -N,Z,Z,-N,-N,Z,-C,-N,-N,
-				     Z,N,C,-N,Z,N,-C,-N,Z,
-				     Z,N,L,Z,N,N,Z,Z,Z,
-				     -N,Z,Z,-N,-N,Z,-L,-C,-N,
-				     Z,Z,Z,-N,-N,Z,-L,-N,Z,
-				     Z,N,N,-N,Z,Z,-N,Z,Z}};	//teta
-int tmpInference[81];	//inference result
-int uppm[2][3];			//membership function of gas concentration
-int udppm[2][3];		//membership function of gas concentration changes
+int ruleGas[2][63]={{S,S,S,S,S,S,S,S,S,S,S,S,S,S,
+					 D,D,D,D,D,D,D,D,D,D,D,D,D,D,
+					 M,M,M,M,M,M,M,J,J,J,J,J,J,J,
+					 M,M,M,M,M,M,M,S,S,S,S,S,S,S,
+					 J,J,J,J,J,J,J},		//sb y
+				    {Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,
+				     N,N,N,Z,-N,-N,-N,N,N,N,Z,-N,-N,-N,
+				     C,N,N,Z,-N,-N,-C,L,C,N,Z,-N,-L,-C,
+				     C,N,N,Z,-N,-N,-C,Z,Z,Z,Z,Z,Z,Z,
+				     L,C,N,Z,-N,-C,-L}};	//teta
+int tmpInference[63];	//inference result
+int uppm[3];			//membership function of gas concentration
+int udppm[3];		//membership function of gas concentration changes
+int uselisih[7];	//selisih ppm kanan dan ppm kiri
 int GasParam[2];		//output fuzzy
 
 //lidar variable
@@ -136,14 +132,14 @@ int mea[2][4];	//sampling measurement
 int Xe1[2][4],Xp1[2][4];
 float Pe1[2][4],Pp1[2][4],G1[2][4];
 float var1[2][4]= {{5.0,5.0,10.0,10.0},{5.0,5.0,10.0,10.0}};	//error variance of measurement
-float varProc1[2][4]= {{0.5,0.5,0.1,0.1},{0.5,0.5,0.1,0.1}};	//variance of movement
+float varProc1[2][4]= {{2.5,2.5,0.5,0.5},{2.5,2.5,0.5,0.5}};	//variance of movement
 
 //fuzzy untuk formation control
 int ruleLidar[3][2][36]={{{J,M,J,S,S,D,S,S,S,J,M,J,S,S,D,S,S,S,J,M,J,S,S,D,S,S,S,J,M,J,S,S,D,S,S,S},
 						 {Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z}},
-					    {{S,S,S,S,S,D,M,M,J,S,S,S,S,S,D,M,M,J,D,D,D,D,S,D,D,M,J,D,D,D,D,S,D,D,M,J},
+					    {{S,S,S,D,S,D,M,M,J,S,S,S,D,S,D,M,M,J,D,D,D,M,S,M,J,J,J,D,D,D,M,S,M,J,J,J},
 					     {Z,Z,Z,Z,Z,Z,-N,Z,-N,Z,Z,Z,Z,Z,Z,-N,Z,-N,-N,-N,-N,-N,Z,N,N,Z,C,-N,-N,-N,-N,-N,-N,-N,-N,-N}},
-					    {{S,S,S,S,S,D,M,M,J,S,S,S,S,S,D,M,M,J,D,D,D,D,S,D,D,M,J,D,D,D,D,S,D,D,M,J},
+					    {{S,S,S,D,S,D,M,M,J,S,S,S,D,S,D,M,M,J,D,D,D,M,S,M,J,J,J,D,D,D,M,S,M,J,J,J},
 						 {Z,Z,Z,Z,Z,Z,N,Z,N,Z,Z,Z,Z,Z,Z,N,Z,N,N,N,N,N,N,N,N,N,N,N,N,N,N,Z,-N,-N,Z,-C}}};
 int tmpInferenceLidar[36];	//inference result of fuzzy
 int sudut_apit,resultan_dist;	//input fuzzy
@@ -151,7 +147,7 @@ int ualpha[3];	//membership function of sudut apit
 int uresultan[3];	//membership function of resultan
 int urad[4];	//membership jarak
 int LidarParam[2];	//output fuzzy lidar
-int lidarSP[3]= {60,600,1035};	//60 derajat dan 600mm
+int lidarSP[3]= {60,1000,1732};	//60 derajat dan 1000mm
 int lidarE[2];
 
 //kompas dan odometery
@@ -167,18 +163,18 @@ int dirD[2];
 int dirE1[2];
 
 //motor control
-int kP[2]= {5,6};
-float kI[2]= {0.15,0.25};
-float kD[2]= {1.5,1.5};
+int kP[2]= {12,10};//{12,0};
+float kI[2]= {0.005,0.005};//{0.005,0.0};
+float kD[2]= {2.0,5.0};//{2.0,0.0};
 int pid[2];
 
 //metaheuristic
 int veloMag[2],dir[2];
 int fn[3];
-int tim4state= 0;
 float matrice[2]= {0,0};	//matrix untuk penjumlah di behavior-based formation control
-int meta= 0;
-int state= 0;
+uint8_t meta= 0;
+uint8_t state= 0;
+uint8_t tim4state= 0;
 
 //perebutan posisi 2 dan 3
 int upos[2][4];
@@ -210,6 +206,7 @@ int main(void){
 	HAL_Delay(500);
 	esp_restart(USART2);
 	HAL_Delay(500);
+	disable_echo(USART2);
 
 	//load ID///////////////////////////////////////////////////////////////////////////////////
 	this_robot= *(uint32_t*) add2;
@@ -412,23 +409,23 @@ int main(void){
 	}
 }
 
-//timer 4 interrupt subroutine setial 0.2 detik sekali untuk sampling gas
+//timer 4 interrupt subroutine setiap 1 detik untuk sampling gas
 void TIM4_IRQHandler(void){
 	if(TIM4->SR&(1UL)){	//update generation due to overflow counter
 		GPIOD->ODR^= (1UL<<12U);
 
 		//odometry here//////////////////////////////////////////////////////////////////
 		if(pid[1]>=0){					//get encoder value
-			encoder[1]= 6*(TIM2->CNT);	//kecepatan dalam mm/s
+			encoder[1]= 3*(TIM2->CNT);	//kecepatan dalam mm/s
 		}
 		else if(pid[1]<0){
-			encoder[1]= -6*(TIM2->CNT);
+			encoder[1]= -3*(TIM2->CNT);
 		}
 		if(pid[0]>=0){
-			encoder[0]= 6*(TIM1->CNT);
+			encoder[0]= 3*(TIM1->CNT);
 		}
 		else if(pid[0]<0){
-			encoder[0]= -6*(TIM1->CNT);
+			encoder[0]= -3*(TIM1->CNT);
 		}
 
 		//resultant velocity
@@ -446,8 +443,8 @@ void TIM4_IRQHandler(void){
 		adc[1]= ADC_getVal(ADC2);
 		rs[0]= MQ_Get_Resistance(adc[0],RLoad);
 		rs[1]= MQ_Get_Resistance(adc[1],RLoad);
-		ppm[0]= MQ_Get_PPM((float)rs[0]/ro[0],curve)/pengali[0];
-		ppm[1]= MQ_Get_PPM((float)rs[1]/ro[1],curve)/pengali[1];
+		ppm[0]= (float)MQ_Get_PPM((float)rs[0]/ro[0],curve)/pengali[0];
+		ppm[1]= (float)MQ_Get_PPM((float)rs[1]/ro[1],curve)/pengali[1];
 
 		//kalman filter dari sensor gas//////////////////////////////////////////////////////////////
 		for(int i=0;i<2;i++){
@@ -458,7 +455,6 @@ void TIM4_IRQHandler(void){
 			Zp[i]= Xp[i];
 			Xe[i]= (G[i]*(ppm[i]-Zp[i]))+Xp[i];
 			ppmK[i]= Xe[i];
-			dppmK[i]= ppmK[i]-ppmK1[i];
 		}
 
 		//pooling during calibration
@@ -466,7 +462,7 @@ void TIM4_IRQHandler(void){
 			roPol0[pol]=rs[0];
 			roPol1[pol]=rs[1];
 			pol++;
-			if(pol>=100)calib_state++;
+			if(pol>=nPol)calib_state++;
 		}
 
 		//sampling data posisi robot lidar////////////////////////////////////////////////////////////
@@ -535,45 +531,58 @@ void TIM4_IRQHandler(void){
 			gamaK[i]= sqrt(pow(xvalK[i],2)+pow(yvalK[i],2));
 		}
 
-		//disini mulai fuzzynya////////////////////////////////////////////////////////////
-		sudut_apit= (360+abs(tetaK[0]-tetaK[1]))%360;	//sudut yang dibentuk oleh 2 robot yang terdeteksi
-		if(sudut_apit>=180)sudut_apit= abs(((tetaK[1]+180)%360-180)-((tetaK[0]+180)%360-180));
-		resultan_dist= sqrt(pow(gamaK[0],2)+pow(gamaK[1],2)+(2*gamaK[0]*gamaK[1]*cos(sudut_apit/PI)));
-		//hitung error lidar
-		lidarE[0]= sudut_apit-lidarSP[0];
-		lidarE[1]= resultan_dist-lidarSP[2];
-
-		int tmpVal[2];
-		int Val;
-		for(int i=0;i<2;i++){
-			tmpVal[i]= gamaK[i]*cos(tetaK[i]/PI);
-		}
-		if(tmpVal[0]>tmpVal[1]){
-			Val= tetaK[0];
-		}
-		else{
-			Val= tetaK[1];
-		}
-
-		if((dir_shG[0]>= dirSG[0])){
+		//kalman untuk lidar dan fuzzy logic
+		if(brdcst%5==0){
 			GPIOD->ODR^= (1UL<<15U);
+			for(int i=0;i<2;i++){
+				tmpPPM[i]=ppmK[i];
+				dppmK= gasFuzzIn[0];
+			}
+
+			//disini mulai fuzzynya////////////////////////////////////////////////////////////
+			sudut_apit= (360+abs(tetaK[0]-tetaK[1]))%360;	//sudut yang dibentuk oleh 2 robot yang terdeteksi
+			if(sudut_apit>=180)sudut_apit= abs(((tetaK[1]+180)%360-180)-((tetaK[0]+180)%360-180));
+			resultan_dist= sqrt(pow(gamaK[0],2)+pow(gamaK[1],2)+(2*gamaK[0]*gamaK[1]*cos(sudut_apit/PI)));
+			//hitung resultan konsentrasi
+			gasFuzzIn[0]= sqrt(pow(tmpPPM[0],2)+pow(tmpPPM[1],2));
+			gasFuzzIn[1]= tmpPPM[0]-tmpPPM[1];
+			gasFuzzIn[2]= gasFuzzIn[0]-dppmK;
+			//hitung error lidar
+			lidarE[0]= sudut_apit-lidarSP[0];
+			lidarE[1]= resultan_dist-lidarSP[2];
+
+			int tmpVal[2];
+			int Val;
+			for(int i=0;i<2;i++){
+			tmpVal[i]= gamaK[i]*cos(tetaK[i]/PI);
+			}
+			if(tmpVal[0]>tmpVal[1]){
+				Val= tetaK[0];
+			}
+			else{
+				Val= tetaK[1];
+			}
+
 			//fuzzy yang baru untuk gerak menuju gas///////////////////////////////////////
-			uppm[0][0]= fs_trapesium_sikukiri(ppmK[0],0,40,60,100);
-			uppm[0][1]= fs_segitiga(ppmK[0],50,350,720,100);
-			uppm[0][2]= fs_trapesium_sikukanan(ppmK[0],500,800,20000,100);
-			uppm[1][0]= fs_trapesium_sikukiri(ppmK[1],0,40,60,100);
-			uppm[1][1]= fs_segitiga(ppmK[1],50,350,720,100);
-			uppm[1][2]= fs_trapesium_sikukanan(ppmK[1],500,800,20000,100);
+			//resultan konsentrasi
+			uppm[0]= fs_trapesium_sikukiri(gasFuzzIn[0],0,36.5,47.5,100);
+			uppm[1]= fs_segitiga(gasFuzzIn[0],40.8,65.8,72.0,100);
+			uppm[2]= fs_trapesium_sikukanan(gasFuzzIn[0],60.0,800,20000,100);
+			//selisih konsentrasi
+			uselisih[0]= fs_trapesium_sikukiri(gasFuzzIn[1],-20000,-160,-18.0,100);
+			uselisih[1]= fs_segitiga(gasFuzzIn[1],-20.5,-16.5,-13.2,100);
+			uselisih[2]= fs_segitiga(gasFuzzIn[1],-14.9,-12.6,-8.8,100);
+			uselisih[3]= fs_segitiga(gasFuzzIn[1],-10.5,0,10.5,100);
+			uselisih[4]= fs_segitiga(gasFuzzIn[1],8.8,12.6,14.9,100);
+			uselisih[5]= fs_segitiga(gasFuzzIn[1],13.2,16.5,20.5,100);
+			uselisih[6]= fs_trapesium_sikukanan(gasFuzzIn[1],18.0,160,20000,100);
+			//kenaikan dan penurunan konsentrasi
+			udppm[0]= fs_trapesium_sikukiri(gasFuzzIn[2],-20000,-25.5,-7.5,100);
+			udppm[1]= fs_segitiga(gasFuzzIn[2],-10.5,0,10.5,100);
+			udppm[2]= fs_trapesium_sikukanan(gasFuzzIn[2],7.5,25.5,20000,100);
 
-			udppm[0][0]= fs_trapesium_sikukiri(dppmK[0],-20000,-38.5,0,100);
-			udppm[0][1]= fs_segitiga(dppmK[0],-55.5,0,55.5,100);
-			udppm[0][2]= fs_trapesium_sikukanan(dppmK[0],0,37,20000,100);
-			udppm[1][0]= fs_trapesium_sikukiri(dppmK[1],-20000,-38.5,0,100);
-			udppm[1][1]= fs_segitiga(dppmK[1],-55.5,0,55.5,100);
-			udppm[1][2]= fs_trapesium_sikukanan(dppmK[1],0,37,20000,100);
-
-			inference(uppm,udppm,tmpInference);	//tmpInference should be &
-			center_area(tmpInference,81,ruleGas,GasParam);	//gas param should be &
+			inference(uppm,udppm,uselisih,tmpInference);	//tmpInference should be &
+			center_area(tmpInference,63,ruleGas,GasParam);	//gas param should be &
 
 			//disini fuzzy untuk lidar//////////////////////////////////////////////////////
 			ualpha[0]=fs_trapesium_sikukiri(lidarE[0],-360,-25,0,100);						//ualpha[0]=fs_trapesium_sikukiri(sudut_apit,0,25,45,100);
@@ -613,6 +622,11 @@ void TIM4_IRQHandler(void){
 				dirD[i]=0;
 				dirE1[i]=0;
 			}
+
+			//send to server setial 1 detik
+			//sprintf(buff4,"[%.2f %.2f][%.2f %.2f]",tmpPPM[0],tmpPPM[1],gasFuzzIn[0],gasFuzzIn[2]);
+			sprintf(buff4,"%c;%6d;%6d;%4d;%3d;%3d;%3d;%3d;%4d;%4d;%9d;%9d;%3d;%4d;%3d;%4d;%4d;%4d;%4d;%3d",id1,(int)(ppmK[0]*10),(int)(ppmK[1]*10),dorientasi,dirSG[0],dirSG[1],dir_shG[0],dir_shG[1],pid[0],pid[1],cartesianG[0],cartesianG[1],tetaK[0],gamaK[0],tetaK[1],gamaK[1],fn[0],fn[1],fn[2],sudut_apit);
+			send_udp(USART2,ID,buff4);
 		}
 
 		//perebutan formasi////////////////////////////////////////////////////////////////
@@ -643,18 +657,16 @@ void TIM4_IRQHandler(void){
 			}
 		}
 
-		//kirim ke ESP setiap 0.2 detik/////////////////////////////////////////////////////
-		sprintf(buff4,"%c;%6d;%6d;%4d;%3d;%3d;%3d;%3d;%4d;%4d;%9d;%9d;%3d;%4d;%3d;%4d;%4d;%4d;%4d;%3d",id1,(int)(ppmK[0]*10),(int)(ppmK[1]*10),dorientasi,dirSG[0],dirSG[1],dir_shG[0],dir_shG[1],pid[0],pid[1],cartesianG[0],cartesianG[1],tetaK[0],gamaK[0],tetaK[1],gamaK[1],fn[0],fn[1],fn[2],sudut_apit);
-		send_udp(USART2,ID,buff4);
-
 		//akhir dari satu subroutine dengan menshift nilai//////////////////////////////////
 		for(int i=0;i<2;i++){
 			yval1[i]= yvalK[i];
 			xval1[i]= xvalK[i];
 			teta1[i]= tetaK[i];
 			gama1[i]= gamaK[i];
-			ppmK1[i]= ppmK[i];
 		}
+
+		brdcst++;
+
 		dorientasi1= dorientasi;
 
 		TIM2->EGR|= (1UL);
@@ -725,7 +737,7 @@ void EXTI1_IRQHandler(void){	//diganti untuk menaikkan pengali sebelah kanan
 			cntMenu= 0;
 			pengali[1]= (pengali[1]+0.2);
 			if(pengali[1]>7.0){
-				pengali[1]= 1.0;
+				pengali[1]= 0.2;
 			}
 		}
 		calib_state=0;
@@ -744,7 +756,7 @@ void EXTI2_IRQHandler(void){	//diganti dengan menaikkan pengali sebelah kiri
 			cntMenu= 0;
 			pengali[0]= (pengali[0]+0.2);
 			if(pengali[0]>7.0){
-				pengali[0]= 1.0;
+				pengali[0]= 0.2;
 			}
 		}
 		calib_state=0;
@@ -780,7 +792,6 @@ void EXTI3_IRQHandler(void){	//setting ID
 
 void TIM6_DAC_IRQHandler(void){		//timer 6 untuk PID kontrol kecepatan roda kanan dan kiri
 	if(TIM6->SR&(1UL)){
-
 		//find error////////////////////////////////////////////////////////////////////////
 		for(int i=0;i<2;i++){
 			dirE[i]= dirSG[i]-dir_shG[i];
@@ -791,9 +802,6 @@ void TIM6_DAC_IRQHandler(void){		//timer 6 untuk PID kontrol kecepatan roda kana
 			dirI[i]= dirI[i]+dirE[i];
 			dirD[i]= dirE1[i]-dirE[i];
 		}
-
-		//sprintf(buff4,"%d;%d;%d;%d;%d;%d",dirE[0],dirE[1],dirI[0],dirI[1],dirD[0],dirD[1]);
-		//send_udp(USART2,ID,buff4);
 
 		//0 kiri, 1 kanan untuk PID////////////////////////////////////////////////////////
 		int yaxis[2];

@@ -16,9 +16,9 @@ extern "C"{
 #define S 0
 
 //untuk teta
-#define L 5
-#define C 4
-#define N 3
+#define L 10
+#define C 7
+#define N 4
 #define Z 0
 
 int fs_segitiga(float x,float lbound,float max,float hbound,int Val);

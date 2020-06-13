@@ -2,7 +2,7 @@
 
 float MQ_Get_Resistance(uint16_t value,float RL){
 	float temp= value*1.18;
-	return ((RL*5000/temp))-RL;
+	return ((float)(RL*5000/temp))-RL;
 }
 
 float MQ_Get_PPM(float rs_ro_ratio,float *curve){
@@ -10,7 +10,7 @@ float MQ_Get_PPM(float rs_ro_ratio,float *curve){
 }
 
 float MQ_Calibration(float *data,float RFactor,int size){
-	int temp= 0;
+	float temp= 0;
 	for(int i=0;i<size;i++){
 		temp= temp+data[i];
 	}

@@ -81,9 +81,9 @@ uint32_t roTmp[2],pengaliTmp[2];
 float roPol0[100];	//polling untuk kalibrasi menentukan nilai Ro
 float roPol1[100];	//polling untuk kalibrasi menentukan nilai Ro
 float ppm[2];		//nilai PPM gas
-float ppmK[2];		//nilai PPM gas after kalman
+float ppmK[2],ppmK1[2];		//nilai PPM gas after kalman
 float tmpPPM[2];
-float dppmK;
+float dppmK[3];
 float gasFuzzIn[3];	//index 0 untuk resultan gas concentration,1 untuk beda konsentrasi kiri dan kanan, 2 untuk besar perubahan resultan
 int pol= 0,nPol= 100;			//indeks untuk menyimpan Ro dalam kalibrasi
 float rs[2];		//nilai resistansi ketika sensor terkena gas dengan pengotor (sensing resistance)
@@ -164,7 +164,7 @@ int dirE1[2];
 
 //motor control
 int kP[2]= {12,10};//{12,0};
-float kI[2]= {0.005,0.005};//{0.005,0.0};
+float kI[2]= {0.01,0.01};//{0.005,0.0};
 float kD[2]= {2.0,5.0};//{2.0,0.0};
 int pid[2];
 
@@ -195,6 +195,7 @@ int main(void){
 	HAL_Delay(500);
 
 	//wellcome screen////////////////////////////////////////////////////////////////////////////
+	i2c_lcdInit(I2C1,LCD);
 	i2c_lcdInit(I2C1,LCD);
 	i2c_lcdClear(I2C1,LCD);
 	i2c_lcdSetCursor(I2C1,LCD,0,0);
@@ -267,12 +268,12 @@ int main(void){
 	//load nilai Ro yang sudah tersimpan dari nonvolatile memory////////////////////////////////
 	roTmp[0]= *(uint32_t*) add0;
 	roTmp[1]= *(uint32_t*) add1;
-	ro[0]= (float)roTmp[0]/100;
-	ro[1]= (float)roTmp[1]/100;
+	ro[0]= (float)roTmp[0]/10000;
+	ro[1]= (float)roTmp[1]/10000;
 	pengaliTmp[0]= *(uint32_t*) add3;
 	pengaliTmp[1]= *(uint32_t*) add4;
-	pengali[0]= (float)pengaliTmp[0]/10;
-	pengali[1]= (float)pengaliTmp[1]/10;
+	pengali[0]= (float)pengaliTmp[0]/100;
+	pengali[1]= (float)pengaliTmp[1]/100;
 
 	//reset compass dan pooling untuk nilai awalan/////////////////////////////////////////////
 	reset_gy26(I2C1);
@@ -318,11 +319,11 @@ int main(void){
 			//simpan di eeprom atau flash memory (non volatile memory)
 			HAL_FLASH_Unlock();
 			FLASH_Erase_Sector(FLASH_SECTOR_11,VOLTAGE_RANGE_3);
-			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add0,(uint32_t)(ro[0]*100));
-			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add1,(uint32_t)(ro[1]*100));
+			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add0,(uint32_t)(ro[0]*10000));
+			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add1,(uint32_t)(ro[1]*10000));
 			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add2,(uint32_t)(this_robot));
-			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add3,(uint32_t)(pengali[0]*10));
-			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add4,(uint32_t)(pengali[1]*10));
+			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add3,(uint32_t)(pengali[0]*100));
+			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add4,(uint32_t)(pengali[1]*100));
 			HAL_FLASH_Lock();
 			pol= 0;
 		}
@@ -348,11 +349,11 @@ int main(void){
 			//save to address
 			HAL_FLASH_Unlock();
 			FLASH_Erase_Sector(FLASH_SECTOR_11,VOLTAGE_RANGE_3);
-			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add0,(uint32_t)(ro[0]*100));
-			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add1,(uint32_t)(ro[1]*100));
+			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add0,(uint32_t)(ro[0]*10000));
+			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add1,(uint32_t)(ro[1]*10000));
 			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add2,(uint32_t)(this_robot));
-			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add3,(uint32_t)(pengali[0]*10));
-			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add4,(uint32_t)(pengali[1]*10));
+			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add3,(uint32_t)(pengali[0]*100));
+			HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add4,(uint32_t)(pengali[1]*100));
 			HAL_FLASH_Lock();
 			HAL_Delay(1000);
 			calib_state1=0;
@@ -368,13 +369,13 @@ int main(void){
 			sprintf(buff3,"%.1f",ppmK[1]);
 			i2c_lcdSetCursor(I2C1,LCD,0,10);
 			i2c_lcdWriteStr(I2C1,LCD,buff3);
-			sprintf(buff3,"%.2fk",ro[0]);
+			sprintf(buff3,"%.3fk",ro[0]);
 			i2c_lcdSetCursor(I2C1,LCD,1,0);
 			i2c_lcdWriteStr(I2C1,LCD,buff3);
 			i2c_lcdSetCursor(I2C1,LCD,1,6);
 			sprintf(buff3,"| %d|",pos);
 			i2c_lcdWriteStr(I2C1,LCD,buff3);
-			sprintf(buff3,"%.2fk",ro[1]);
+			sprintf(buff3,"%.3fk",ro[1]);
 			i2c_lcdSetCursor(I2C1,LCD,1,10);
 			i2c_lcdWriteStr(I2C1,LCD,buff3);
 		}
@@ -443,8 +444,8 @@ void TIM4_IRQHandler(void){
 		adc[1]= ADC_getVal(ADC2);
 		rs[0]= MQ_Get_Resistance(adc[0],RLoad);
 		rs[1]= MQ_Get_Resistance(adc[1],RLoad);
-		ppm[0]= (float)MQ_Get_PPM((float)rs[0]/ro[0],curve)/pengali[0];
-		ppm[1]= (float)MQ_Get_PPM((float)rs[1]/ro[1],curve)/pengali[1];
+		ppm[0]= (float)MQ_Get_PPM((float)rs[0]/(ro[0]*pengali[0]),curve);
+		ppm[1]= (float)MQ_Get_PPM((float)rs[1]/(ro[1]*pengali[1]),curve);
 
 		//kalman filter dari sensor gas//////////////////////////////////////////////////////////////
 		for(int i=0;i<2;i++){
@@ -536,7 +537,7 @@ void TIM4_IRQHandler(void){
 			GPIOD->ODR^= (1UL<<15U);
 			for(int i=0;i<2;i++){
 				tmpPPM[i]=ppmK[i];
-				dppmK= gasFuzzIn[0];
+				dppmK[2]= gasFuzzIn[0];
 			}
 
 			//disini mulai fuzzynya////////////////////////////////////////////////////////////
@@ -545,8 +546,8 @@ void TIM4_IRQHandler(void){
 			resultan_dist= sqrt(pow(gamaK[0],2)+pow(gamaK[1],2)+(2*gamaK[0]*gamaK[1]*cos(sudut_apit/PI)));
 			//hitung resultan konsentrasi
 			gasFuzzIn[0]= sqrt(pow(tmpPPM[0],2)+pow(tmpPPM[1],2));
-			gasFuzzIn[1]= tmpPPM[0]-tmpPPM[1];
-			gasFuzzIn[2]= gasFuzzIn[0]-dppmK;
+			gasFuzzIn[1]= (tmpPPM[0]-ppmK1[0])-(tmpPPM[1]-ppmK1[1]); //tmpPPM[0]-tmpPPM[1];
+			gasFuzzIn[2]= gasFuzzIn[0]-dppmK[2];
 			//hitung error lidar
 			lidarE[0]= sudut_apit-lidarSP[0];
 			lidarE[1]= resultan_dist-lidarSP[2];
@@ -565,21 +566,21 @@ void TIM4_IRQHandler(void){
 
 			//fuzzy yang baru untuk gerak menuju gas///////////////////////////////////////
 			//resultan konsentrasi
-			uppm[0]= fs_trapesium_sikukiri(gasFuzzIn[0],0,36.5,47.5,100);
-			uppm[1]= fs_segitiga(gasFuzzIn[0],40.8,65.8,72.0,100);
-			uppm[2]= fs_trapesium_sikukanan(gasFuzzIn[0],60.0,800,20000,100);
+			uppm[0]= fs_trapesium_sikukiri(gasFuzzIn[0],0,40.5,46.5,100);
+			uppm[1]= fs_segitiga(gasFuzzIn[0],40.5,65.5,85.0,100);
+			uppm[2]= fs_trapesium_sikukanan(gasFuzzIn[0],80.0,120,20000,100);
 			//selisih konsentrasi
-			uselisih[0]= fs_trapesium_sikukiri(gasFuzzIn[1],-20000,-160,-18.0,100);
-			uselisih[1]= fs_segitiga(gasFuzzIn[1],-20.5,-16.5,-13.2,100);
-			uselisih[2]= fs_segitiga(gasFuzzIn[1],-14.9,-12.6,-8.8,100);
-			uselisih[3]= fs_segitiga(gasFuzzIn[1],-10.5,0,10.5,100);
-			uselisih[4]= fs_segitiga(gasFuzzIn[1],8.8,12.6,14.9,100);
-			uselisih[5]= fs_segitiga(gasFuzzIn[1],13.2,16.5,20.5,100);
-			uselisih[6]= fs_trapesium_sikukanan(gasFuzzIn[1],18.0,160,20000,100);
+			uselisih[0]= fs_trapesium_sikukiri(gasFuzzIn[1],-20000,-3.60,-2.0,100);
+			uselisih[1]= fs_segitiga(gasFuzzIn[1],-2.5,-1.45,-1.1,100);
+			uselisih[2]= fs_segitiga(gasFuzzIn[1],-1.25,-0.95,-0.28,100);
+			uselisih[3]= fs_segitiga(gasFuzzIn[1],-0.5,0,0.5,100);
+			uselisih[4]= fs_segitiga(gasFuzzIn[1],0.28,0.95,1.25,100);
+			uselisih[5]= fs_segitiga(gasFuzzIn[1],1.1,1.45,2.5,100);
+			uselisih[6]= fs_trapesium_sikukanan(gasFuzzIn[1],2.0,3.60,20000,100);
 			//kenaikan dan penurunan konsentrasi
-			udppm[0]= fs_trapesium_sikukiri(gasFuzzIn[2],-20000,-25.5,-7.5,100);
-			udppm[1]= fs_segitiga(gasFuzzIn[2],-10.5,0,10.5,100);
-			udppm[2]= fs_trapesium_sikukanan(gasFuzzIn[2],7.5,25.5,20000,100);
+			udppm[0]= fs_trapesium_sikukiri(gasFuzzIn[2],-20000,-5.5,-0.75,100);
+			udppm[1]= fs_segitiga(gasFuzzIn[2],-1.0,0,1.0,100);
+			udppm[2]= fs_trapesium_sikukanan(gasFuzzIn[2],0.75,5.5,20000,100);
 
 			inference(uppm,udppm,uselisih,tmpInference);	//tmpInference should be &
 			center_area(tmpInference,63,ruleGas,GasParam);	//gas param should be &
@@ -606,11 +607,11 @@ void TIM4_IRQHandler(void){
 			dirS[1]= dirS[1]+(matrice[0]*GasParam[1])+(matrice[1]*LidarParam[1]);
 
 			//limitation////////////////////////////////////////////////////////////////////
-			if(dirS[1]>= 60){
-				dirS[1]= 60;
+			if(dirS[1]>= 120){
+				dirS[1]= 120;
 			}
-			else if(dirS[1]<= -60){
-				dirS[1]= -60;
+			else if(dirS[1]<= -120){
+				dirS[1]= -120;
 			}
 			dirSG[0]=dirS[0];
 			dirSG[1]=dirS[1];
@@ -621,10 +622,11 @@ void TIM4_IRQHandler(void){
 				dirI[i]=0;
 				dirD[i]=0;
 				dirE1[i]=0;
+				ppmK1[i]=tmpPPM[i];
 			}
 
 			//send to server setial 1 detik
-			//sprintf(buff4,"[%.2f %.2f][%.2f %.2f]",tmpPPM[0],tmpPPM[1],gasFuzzIn[0],gasFuzzIn[2]);
+			//sprintf(buff4,"%.2f,%.2f,%.2f,%.2f,%.2f",tmpPPM[0],tmpPPM[1],gasFuzzIn[0],gasFuzzIn[1],gasFuzzIn[2]);
 			sprintf(buff4,"%c;%6d;%6d;%4d;%3d;%3d;%3d;%3d;%4d;%4d;%9d;%9d;%3d;%4d;%3d;%4d;%4d;%4d;%4d;%3d",id1,(int)(ppmK[0]*10),(int)(ppmK[1]*10),dorientasi,dirSG[0],dirSG[1],dir_shG[0],dir_shG[1],pid[0],pid[1],cartesianG[0],cartesianG[1],tetaK[0],gamaK[0],tetaK[1],gamaK[1],fn[0],fn[1],fn[2],sudut_apit);
 			send_udp(USART2,ID,buff4);
 		}
@@ -735,9 +737,9 @@ void EXTI1_IRQHandler(void){	//diganti untuk menaikkan pengali sebelah kanan
 		else{
 			calib_state1=1;
 			cntMenu= 0;
-			pengali[1]= (pengali[1]+0.2);
-			if(pengali[1]>7.0){
-				pengali[1]= 0.2;
+			pengali[1]= (pengali[1]+0.02);
+			if(pengali[1]>1.3){
+				pengali[1]= 0.8;
 			}
 		}
 		calib_state=0;
@@ -754,9 +756,9 @@ void EXTI2_IRQHandler(void){	//diganti dengan menaikkan pengali sebelah kiri
 		else{
 			calib_state1=1;
 			cntMenu= 0;
-			pengali[0]= (pengali[0]+0.2);
-			if(pengali[0]>7.0){
-				pengali[0]= 0.2;
+			pengali[0]= (pengali[0]+0.02);
+			if(pengali[0]>1.3){
+				pengali[0]= 0.8;
 			}
 		}
 		calib_state=0;
@@ -779,11 +781,11 @@ void EXTI3_IRQHandler(void){	//setting ID
 		//simpan ID yang baru///////////////////////////////////////////////////////////////
 		HAL_FLASH_Unlock();
 		FLASH_Erase_Sector(FLASH_SECTOR_11,VOLTAGE_RANGE_3);
-		HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add0,(uint32_t)(ro[0]*100));
-		HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add1,(uint32_t)(ro[1]*100));
+		HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add0,(uint32_t)(ro[0]*10000));
+		HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add1,(uint32_t)(ro[1]*10000));
 		HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add2,(uint32_t)(this_robot));
-		HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add3,(uint32_t)(pengali[0]*10));
-		HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add4,(uint32_t)(pengali[1]*10));
+		HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add3,(uint32_t)(pengali[0]*100));
+		HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,add4,(uint32_t)(pengali[1]*100));
 		HAL_FLASH_Lock();
 
 		EXTI->PR|= (1UL<<3U);

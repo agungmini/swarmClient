@@ -20,6 +20,7 @@ C_SRCS += \
 ../src/man_rcc_stm32f4.c \
 ../src/man_tim_stm32f4.c \
 ../src/man_uart_stm32f4.c \
+../src/particle_swarm.c \
 ../src/stm32f4xx_it.c \
 ../src/syscalls.c \
 ../src/system_stm32f4xx.c 
@@ -41,6 +42,7 @@ OBJS += \
 ./src/man_rcc_stm32f4.o \
 ./src/man_tim_stm32f4.o \
 ./src/man_uart_stm32f4.o \
+./src/particle_swarm.o \
 ./src/stm32f4xx_it.o \
 ./src/syscalls.o \
 ./src/system_stm32f4xx.o 
@@ -62,6 +64,7 @@ C_DEPS += \
 ./src/man_rcc_stm32f4.d \
 ./src/man_tim_stm32f4.d \
 ./src/man_uart_stm32f4.d \
+./src/particle_swarm.d \
 ./src/stm32f4xx_it.d \
 ./src/syscalls.d \
 ./src/system_stm32f4xx.d 

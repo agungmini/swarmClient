@@ -76,7 +76,8 @@ src/main.o: ../src/main.c \
  /home/nursyeha/Documents/projects/stm32_parent/f4SwarmRobotInC_Forward/inc/man_uart_stm32f4.h \
  /home/nursyeha/Documents/projects/stm32_parent/f4SwarmRobotInC_Forward/inc/esp01_AT.h \
  /home/nursyeha/Documents/projects/stm32_parent/f4SwarmRobotInC_Forward/inc/gy26_compass.h \
- /home/nursyeha/Documents/projects/stm32_parent/f4SwarmRobotInC_Forward/inc/fuzzy.h
+ /home/nursyeha/Documents/projects/stm32_parent/f4SwarmRobotInC_Forward/inc/fuzzy.h \
+ /home/nursyeha/Documents/projects/stm32_parent/f4SwarmRobotInC_Forward/inc/particle_swarm.h
 
 /home/nursyeha/Documents/projects/stm32_parent/f4SwarmRobotInC_Forward/inc/man_rcc_stm32f4.h:
 
@@ -233,3 +234,5 @@ src/main.o: ../src/main.c \
 /home/nursyeha/Documents/projects/stm32_parent/f4SwarmRobotInC_Forward/inc/gy26_compass.h:
 
 /home/nursyeha/Documents/projects/stm32_parent/f4SwarmRobotInC_Forward/inc/fuzzy.h:
+
+/home/nursyeha/Documents/projects/stm32_parent/f4SwarmRobotInC_Forward/inc/particle_swarm.h:

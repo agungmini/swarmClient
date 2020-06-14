@@ -28,6 +28,7 @@
 #include <esp01_AT.h>
 #include <gy26_compass.h>
 #include <fuzzy.h>
+#include <particle_swarm.h>
 
 #define bSize 			1808	//jumlah data mentah LIDAR dari DMA
 #define RLoad 			1.0		//RLoad pada modul sensor gas
@@ -121,9 +122,9 @@ uint8_t liBuff[bSize];	//variable untuk menyimpan data mentah LIDAR (terhubung d
 uint16_t dist[360],dist1[360],shadow_gama[360];
 int shadow_teta[360];
 int ddist[360];	//variable jarak dalam mm yang telah diolah
-int teta[2],teta1[2];
+int teta[2],teta1[2],teta2[2];
 uint16_t gama[2];	//teta sudut,teta1 sudut(n-1),gama jarak,gama1 jarak(n-1), 0 untuk fnmax, 1 untuk fnmin
-int gama1[2];
+int gama1[2],gama2[2];
 int xval[2],yval[2],xval1[2],yval1[2],xvalK[2],yvalK[2];
 int tetaK[2],gamaK[2];
 
@@ -135,20 +136,64 @@ float var1[2][4]= {{5.0,5.0,10.0,10.0},{5.0,5.0,10.0,10.0}};	//error variance of
 float varProc1[2][4]= {{2.5,2.5,0.5,0.5},{2.5,2.5,0.5,0.5}};	//variance of movement
 
 //fuzzy untuk formation control
-int ruleLidar[3][2][36]={{{J,M,J,S,S,D,S,S,S,J,M,J,S,S,D,S,S,S,J,M,J,S,S,D,S,S,S,J,M,J,S,S,D,S,S,S},
-						 {Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z,Z}},
-					    {{S,S,S,D,S,D,M,M,J,S,S,S,D,S,D,M,M,J,D,D,D,M,S,M,J,J,J,D,D,D,M,S,M,J,J,J},
-					     {Z,Z,Z,Z,Z,Z,-N,Z,-N,Z,Z,Z,Z,Z,Z,-N,Z,-N,-N,-N,-N,-N,Z,N,N,Z,C,-N,-N,-N,-N,-N,-N,-N,-N,-N}},
-					    {{S,S,S,D,S,D,M,M,J,S,S,S,D,S,D,M,M,J,D,D,D,M,S,M,J,J,J,D,D,D,M,S,M,J,J,J},
-						 {Z,Z,Z,Z,Z,Z,N,Z,N,Z,Z,Z,Z,Z,Z,N,Z,N,N,N,N,N,N,N,N,N,N,N,N,N,N,Z,-N,-N,Z,-C}}};
-int tmpInferenceLidar[36];	//inference result of fuzzy
+int ruleLidar[3][2][72]={{{J,M,J,S,S,D,S,S,S,
+						   J,M,J,S,S,D,S,S,S,
+						   J,M,J,S,S,D,S,S,S,
+						   J,M,J,S,S,D,S,S,S,
+						   J,M,J,S,S,D,S,S,S,
+						   J,M,J,S,S,D,S,S,S,
+						   J,M,J,S,S,D,S,S,S,
+						   J,M,J,S,S,D,S,S,S},
+						  {Z,Z,Z,Z,Z,Z,Z,Z,Z,
+						   Z,Z,Z,Z,Z,Z,Z,Z,Z,
+						   Z,Z,Z,Z,Z,Z,Z,Z,Z,
+						   Z,Z,Z,Z,Z,Z,Z,Z,Z,
+						   Z,Z,Z,Z,Z,Z,Z,Z,Z,
+						   Z,Z,Z,Z,Z,Z,Z,Z,Z,
+						   Z,Z,Z,Z,Z,Z,Z,Z,Z,
+						   Z,Z,Z,Z,Z,Z,Z,Z,Z}},
+					     {{S,S,D,S,S,D,S,S,D,
+					       S,S,D,S,S,D,S,S,D,
+						   S,S,S,S,S,S,S,S,S,
+						   S,S,S,S,S,S,S,S,S,
+						   S,S,S,D,S,D,M,M,J,
+						   S,S,S,D,S,D,M,M,J,
+						   D,D,D,M,S,M,J,J,J,
+						   D,D,D,M,S,M,J,J,J},
+					      {Z,Z,-N,Z,Z,-N,Z,Z,-N,
+					       Z,Z,-N,Z,Z,-N,Z,Z,-N,
+						   Z,Z,Z,Z,Z,Z,Z,Z,Z,
+						   Z,Z,Z,Z,Z,Z,Z,Z,Z,
+						   Z,Z,Z,Z,Z,Z,-N,Z,-N,
+						   Z,Z,Z,Z,Z,Z,-N,Z,-N,
+						   -N,-N,-N,-N,Z,N,N,Z,C,
+						   -N,-N,-N,-N,-N,-N,-N,-N,-N}},
+					     {{S,S,D,S,S,D,S,S,D,
+					       S,S,D,S,S,D,S,S,D,
+						   S,S,S,S,S,S,S,S,S,
+						   S,S,S,S,S,S,S,S,S,
+						   S,S,S,D,S,D,M,M,J,
+						   S,S,S,D,S,D,M,M,J,
+						   D,D,D,M,S,M,J,J,J,
+						   D,D,D,M,S,M,J,J,J},
+						  {Z,Z,N,Z,Z,N,Z,Z,N,
+						   Z,Z,N,Z,Z,N,Z,Z,N,
+						   Z,Z,Z,Z,Z,Z,Z,Z,Z,
+						   Z,Z,Z,Z,Z,Z,Z,Z,Z,
+						   Z,Z,Z,Z,Z,Z,N,Z,N,
+						   Z,Z,Z,Z,Z,Z,N,Z,N,
+						   N,N,N,N,N,N,N,N,N,
+						   N,N,N,N,Z,-N,-N,Z,-C}}};
+
+int tmpInferenceLidar[72];	//inference result of fuzzy
 int sudut_apit,resultan_dist;	//input fuzzy
 int ualpha[3];	//membership function of sudut apit
 int uresultan[3];	//membership function of resultan
 int urad[4];	//membership jarak
+int uex[2];
 int LidarParam[2];	//output fuzzy lidar
 int lidarSP[3]= {60,1000,1732};	//60 derajat dan 1000mm
-int lidarE[2];
+int lidarE[4];
 
 //kompas dan odometery
 int orientasi,orientasi1,dorientasi,dorientasi1,dorientasi_step;	//orientasi robot
@@ -170,9 +215,10 @@ int pid[2];
 
 //metaheuristic
 int veloMag[2],dir[2];
+int Val[2];
 int fn[3];
 float matrice[2]= {0,0};	//matrix untuk penjumlah di behavior-based formation control
-uint8_t meta= 0;
+uint8_t meta= 1;
 uint8_t state= 0;
 uint8_t tim4state= 0;
 
@@ -540,6 +586,19 @@ void TIM4_IRQHandler(void){
 				dppmK[2]= gasFuzzIn[0];
 			}
 
+			int tmpVal[2];
+			for(int i=0;i<2;i++){
+				tmpVal[i]= (3000/gamaK[i])*cos(tetaK[i]/PI);
+			}
+			if(tmpVal[0]>tmpVal[1]){
+				Val[0]= tetaK[0];
+				Val[1]= gamaK[0];
+			}
+			else{
+				Val[0]= tetaK[1];
+				Val[1]= gamaK[1];
+			}
+
 			//disini mulai fuzzynya////////////////////////////////////////////////////////////
 			sudut_apit= (360+abs(tetaK[0]-tetaK[1]))%360;	//sudut yang dibentuk oleh 2 robot yang terdeteksi
 			if(sudut_apit>=180)sudut_apit= abs(((tetaK[1]+180)%360-180)-((tetaK[0]+180)%360-180));
@@ -551,18 +610,8 @@ void TIM4_IRQHandler(void){
 			//hitung error lidar
 			lidarE[0]= sudut_apit-lidarSP[0];
 			lidarE[1]= resultan_dist-lidarSP[2];
-
-			int tmpVal[2];
-			int Val;
-			for(int i=0;i<2;i++){
-			tmpVal[i]= gamaK[i]*cos(tetaK[i]/PI);
-			}
-			if(tmpVal[0]>tmpVal[1]){
-				Val= tetaK[0];
-			}
-			else{
-				Val= tetaK[1];
-			}
+			lidarE[2]= Val[0];						//lokasi robot yang paling dekat sudut
+			lidarE[3]= Val[1];						//lokasi robot yang paling dekat jarak
 
 			//fuzzy yang baru untuk gerak menuju gas///////////////////////////////////////
 			//resultan konsentrasi
@@ -594,24 +643,27 @@ void TIM4_IRQHandler(void){
 			uresultan[1]= fs_segitiga(lidarE[1],-250,0,250,100);					//uresultan[1]= fs_segitiga(resultan_dist,600,1040,1400,100);
 			uresultan[2]= fs_trapesium_sikukanan(lidarE[1],180,350,3000,100);	//uresultan[2]= fs_trapesium_sikukanan(resultan_dist,1200,1350,10000,100);
 
-			urad[0]= fs_trapesium_sikukiri(Val,0,15,20,100);
-			urad[1]= fs_trapesium_sikukanan(Val,350,345,360,100);
-			urad[2]= fs_trapesium_sikukanan(Val,17,20,180,100);
-			urad[3]= fs_trapesium_sikukiri(Val,180,340,343,100);
+			urad[0]= fs_trapesium_sikukiri(Val[0],0,15,20,100);
+			urad[1]= fs_trapesium_sikukanan(Val[0],350,345,360,100);
+			urad[2]= fs_trapesium_sikukanan(Val[0],17,20,180,100);
+			urad[3]= fs_trapesium_sikukiri(Val[0],180,340,343,100);
 
-			inference_lidar(uresultan,ualpha,urad,tmpInferenceLidar);	//tmpInference should be &
-			center_area_lidar((pos-1),tmpInferenceLidar,36,ruleLidar,LidarParam);	//lidar param should be &
+			uex[0]= fs_trapesium_sikukiri(Val[1],0,300,400,100);
+			uex[1]= fs_trapesium_sikukanan(Val[1],350,450,3000,100);
+
+			inference_lidar(uresultan,ualpha,urad,uex,tmpInferenceLidar);	//tmpInference should be &
+			center_area_lidar((pos-1),tmpInferenceLidar,72,ruleLidar,LidarParam);	//lidar param should be &
 
 			//setpoint declaration//////////////////////////////////////////////////////////
 			dirS[0]= (matrice[0]*GasParam[0])+(matrice[1]*LidarParam[0]);
 			dirS[1]= dirS[1]+(matrice[0]*GasParam[1])+(matrice[1]*LidarParam[1]);
 
 			//limitation////////////////////////////////////////////////////////////////////
-			if(dirS[1]>= 120){
-				dirS[1]= 120;
+			if(dirS[1]>= 90){
+				dirS[1]= 90;
 			}
-			else if(dirS[1]<= -120){
-				dirS[1]= -120;
+			else if(dirS[1]<= -90){
+				dirS[1]= -90;
 			}
 			dirSG[0]=dirS[0];
 			dirSG[1]=dirS[1];
@@ -625,37 +677,44 @@ void TIM4_IRQHandler(void){
 				ppmK1[i]=tmpPPM[i];
 			}
 
+			//perebutan formasi////////////////////////////////////////////////////////////////
+			//menghitung kecepatan para robot
+			if(meta){
+				dorientasi_step= dorientasi-dorientasi1;
+				measure_velocity(gamaK,gama2,dorientasi_step,tetaK,teta2,veloMag,dir,tim4state);	//mencari kecepatan tiap2 robot
+				fn[0]= (int)magV*5;
+				fn[1]= (int)(((gamaK[0]/10)*cos(tetaK[0]/PI))+(veloMag[0]));
+				fn[2]= (int)(((gamaK[1]/10)*cos(tetaK[1]/PI))+(veloMag[1]));
+				pos= metaheuristicGetpos(dorientasi,fn,tetaK,gamaK);
+
+				//if((fn[0]>fn[1])&&(fn[0>fn[2]])){
+				//	pos= 1;
+				//}
+				//else{
+				//	//fuzzy for position
+				//	upos[0][0]= fs_kotak(tetaK[0],0,90,100);
+				//	upos[0][1]= fs_kotak(tetaK[0],90,180,100);
+				//	upos[0][2]= fs_kotak(tetaK[0],180,270,100);
+				//	upos[0][3]= fs_kotak(tetaK[0],270,360,100);
+				//	upos[1][0]= fs_kotak(tetaK[1],0,90,100);
+				//	upos[1][1]= fs_kotak(tetaK[1],90,180,100);
+				//	upos[1][2]= fs_kotak(tetaK[1],180,270,100);
+				//	upos[1][3]= fs_kotak(tetaK[1],270,360,100);
+
+				//	inference_formation(upos,tmpInferecePos);
+				//	pos= center_area_formation(tmpInferecePos,16,rule_pos);
+				//}
+			}
+
 			//send to server setial 1 detik
 			//sprintf(buff4,"%.2f,%.2f,%.2f,%.2f,%.2f",tmpPPM[0],tmpPPM[1],gasFuzzIn[0],gasFuzzIn[1],gasFuzzIn[2]);
 			sprintf(buff4,"%c;%6d;%6d;%4d;%3d;%3d;%3d;%3d;%4d;%4d;%9d;%9d;%3d;%4d;%3d;%4d;%4d;%4d;%4d;%3d",id1,(int)(ppmK[0]*10),(int)(ppmK[1]*10),dorientasi,dirSG[0],dirSG[1],dir_shG[0],dir_shG[1],pid[0],pid[1],cartesianG[0],cartesianG[1],tetaK[0],gamaK[0],tetaK[1],gamaK[1],fn[0],fn[1],fn[2],sudut_apit);
+			//sprintf(buff4,"[%d %d][%d %d] %d",tetaK[0],gamaK[0],tetaK[1],gamaK[1],pos);
 			send_udp(USART2,ID,buff4);
-		}
 
-		//perebutan formasi////////////////////////////////////////////////////////////////
-		//menghitung kecepatan para robot
-		dorientasi_step= dorientasi-dorientasi1;
-		measure_velocity(gamaK,gama1,dorientasi_step,tetaK,teta1,veloMag,dir,tim4state);	//mencari kecepatan tiap2 robot
-		fn[0]= (int)magV*5;
-		fn[1]= (int)(((gamaK[0]/10)*cos(tetaK[0]/PI))+(veloMag[0]*5));
-		fn[2]= (int)(((gamaK[1]/10)*cos(tetaK[1]/PI))+(veloMag[1]*5));
-		if(meta){
-			if((fn[0]>fn[1])&&(fn[0>fn[2]])){
-				pos= 1;
-			}
-			else{
-				//fuzzy for position
-				upos[0][0]= fs_kotak(tetaK[0],0,90,100);
-				upos[0][1]= fs_kotak(tetaK[0],90,180,100);
-				upos[0][2]= fs_kotak(tetaK[0],180,270,100);
-				upos[0][3]= fs_kotak(tetaK[0],270,360,100);
-
-				upos[1][0]= fs_kotak(tetaK[1],0,90,100);
-				upos[1][1]= fs_kotak(tetaK[1],90,180,100);
-				upos[1][2]= fs_kotak(tetaK[1],180,270,100);
-				upos[1][3]= fs_kotak(tetaK[1],270,360,100);
-
-				inference_formation(upos,tmpInferecePos);
-				pos= center_area_formation(tmpInferecePos,16,rule_pos);
+			for(int i=0;i<2;i++){
+				teta2[i]=tetaK[i];
+				gama2[i]=gamaK[i];
 			}
 		}
 

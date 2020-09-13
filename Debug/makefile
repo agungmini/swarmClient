@@ -53,10 +53,10 @@ endif
 all: f4SwarmRobotInC_Forward.elf
 
 # Tool invocations
-f4SwarmRobotInC_Forward.elf: $(OBJS) $(USER_OBJS) /home/nursyeha/Documents/projects/stm32_parent/f4SwarmRobotInC_Forward/LinkerScript.ld
+f4SwarmRobotInC_Forward.elf: $(OBJS) $(USER_OBJS) /home/nursyeha/Documents/Stm32_parent/f4SwarmRobotInC_Forward/LinkerScript.ld
 	@echo 'Building target: $@'
 	@echo 'Invoking: MCU GCC Linker'
-	arm-none-eabi-gcc -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -u _printf_float -T"/home/nursyeha/Documents/projects/stm32_parent/f4SwarmRobotInC_Forward/LinkerScript.ld" -Wl,-Map=output.map -Wl,--gc-sections -o "f4SwarmRobotInC_Forward.elf" @"objects.list" $(USER_OBJS) $(LIBS) -lm
+	arm-none-eabi-gcc -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -u _printf_float -T"/home/nursyeha/Documents/Stm32_parent/f4SwarmRobotInC_Forward/LinkerScript.ld" -Wl,-Map=output.map -Wl,--gc-sections -o "f4SwarmRobotInC_Forward.elf" @"objects.list" $(USER_OBJS) $(LIBS) -lm
 	@echo 'Finished building target: $@'
 	@echo ' '
 	$(MAKE) --no-print-directory post-build

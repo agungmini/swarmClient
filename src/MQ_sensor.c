@@ -1,7 +1,7 @@
 #include "MQ_sensor.h"
 
 float MQ_Get_Resistance(uint16_t value,float RL){
-	float temp= value*1.18;
+	float temp= (float)(value*1.46);
 	return ((float)(RL*5000/temp))-RL;
 }
 

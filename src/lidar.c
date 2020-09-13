@@ -103,11 +103,11 @@ void find_robot(int *derivative,uint16_t *distance,int stdev,int mean,int size,f
 				}
 			}
 
-			if((j<= 50)&&(j>=4)&&(distance[(i+(j/2))%360]> 100)){
+			if((j<= 50)&&(j>=3)&&(distance[(i+(j/2))%360]> 100)){
 				angle[number]= (i+(j/2)+1)%360;
 				dist[number]= distance[(i+(j/2)+1)%360];
 				number++;
-				i= i+j+5;
+				i= i+j+10;
 			}
 			else{
 				i++;
@@ -123,7 +123,7 @@ void find_theBest(uint16_t *input,int *input1,int size,int *measured_angle,int *
 	int n=0;
 	int tmpout_ang[2];
 	int tmpout_dis[2];
-	int index[2] ;
+	int idex[2] ;
 
 	while((input[n]!=0)&(n<360)){
 		n++;
@@ -204,26 +204,20 @@ void find_theBest(uint16_t *input,int *input1,int size,int *measured_angle,int *
 					minVal= edist[0][j];
 					minVal1= edist[1][j];
 					pos= j;
-					index[i]= pos;
+					idex[i]= pos;
 				}
 			}
-			if((minVal1<= 45)&&(minVal<= 300)){
-				if(i==0){
-					out[i]= tmpout_ang[pos];
-					out1[i]= (uint16_t)tmpout_dis[pos];
-				}
-				else if(i==1 && index[1]!= index[0]){
-					out[i]= tmpout_ang[pos];
-					out1[i]= (uint16_t)tmpout_dis[pos];
-				}
-				else if(i== 1 && index[1]==index[0]){
-					out[i]= tmpout_ang[1-pos];
-					out1[i]= (uint16_t)tmpout_dis[1-pos];
-				}
+			if(i==0){
+				out[i]= tmpout_ang[pos];
+				out1[i]= (uint16_t)tmpout_dis[pos];
 			}
-			else{
-				out[i]= measured_angle[i];
-				out1[i]= (uint16_t)measured_dist[i];
+			else if(i==1 && idex[1]!= idex[0]){
+				out[i]= tmpout_ang[pos];
+				out1[i]= (uint16_t)tmpout_dis[pos];
+			}
+			else if(i== 1 && idex[1]==idex[0]){
+				out[i]= tmpout_ang[1-pos];
+				out1[i]= (uint16_t)tmpout_dis[1-pos];
 			}
 		}
 	}
@@ -233,14 +227,19 @@ void find_theBest(uint16_t *input,int *input1,int size,int *measured_angle,int *
 			out1[i]= tmpout_dis[i];
 		}
 	}
+
+	for(int i=0;i<2;i++){
+		out[i]= (out[i]+180)%360-180;
+	}
 }
 
 void measure_velocity(int *pos,int *pos1,int orientasi,int *angle,int *angle1,int *velocity,int *direction,int state){
 	int velox[2],veloy[2];
 	if(state){
 		for(int i=0;i<2;i++){
-			veloy[i]=(int)(pos[i]*cos((angle[i]-orientasi)/PI)-pos1[i]*cos(angle1[i]/PI));
-			velox[i]=(int)(pos[i]*sin((angle[i]-orientasi)/PI)-pos1[i]*sin(angle1[i]/PI));
+			veloy[i]=(int)(pos[i]*cos((angle[i]+orientasi)/PI)-pos1[i]*cos(angle1[i]/PI));
+			velox[i]=(int)(pos[i]*sin((angle[i]+orientasi)/PI)-pos1[i]*sin(angle1[i]/PI));
+
 			if(veloy[i]>= 0){
 				velocity[i]= sqrt(pow(velox[i],2)+pow(veloy[i],2));
 			}
@@ -248,17 +247,34 @@ void measure_velocity(int *pos,int *pos1,int orientasi,int *angle,int *angle1,in
 				velocity[i]= -1*(sqrt(pow(velox[i],2)+pow(veloy[i],2)));
 			}
 
-			if((veloy[i]<0)&(velox[i]<0)){
-				direction[i]= (int)(PI*atan((float)velox[i]/(veloy[i]+1)))+180;
-			}
-			else if((veloy[i]<0)&(velox[i]>=0)){
-				direction[i]= 180+(int)(PI*atan((float)velox[i]/(veloy[i]+1)));
-			}
-			else if((veloy[i]>=0)&(velox[i]<0)){
-				direction[i]= 360+(int)(PI*atan((float)velox[i]/(veloy[i]+1)));
+			if(abs(velocity[i])> 16){
+				if(veloy[i]<0){
+					if(veloy[i]!=0){
+						direction[i]= 180+(int)(PI*atan((float)velox[i]/veloy[i]));
+					}
+					else{
+						direction[i]= 180+(int)(PI*atan((float)velox[i]/(veloy[i]+1)));
+					}
+				}
+				else{
+					if(veloy[i]!=0){
+						direction[i]= (360+(int)(PI*atan((float)velox[i]/veloy[i])))%360;
+					}
+					else{
+						direction[i]= (360+(int)(PI*atan((float)velox[i]/(veloy[i]+1))))%360;
+					}
+				}
+				int someVal= (direction[i]+180)%360-180;
+				if(someVal>= -90 && someVal<= 90){
+					direction[i]= someVal;
+				}
+				else{
+					direction[i]= 0;
+				}
 			}
 			else{
-				direction[i]= (int)(PI*atan((float)velox[i]/(veloy[i]+1)));
+				velocity[i]= 0;
+				direction[i]= 0;
 			}
 		}
 	}
@@ -285,4 +301,32 @@ uint16_t get_distance(uint16_t *lidar_scan,int start,int end){
 		}
 	}
 	return minVal;
+}
+
+void get_vector_distance(int posisi,int *cartDist,int *vector){
+	if(posisi!= 1){
+		vector[0]= sqrt(pow(cartDist[0],2)+pow(cartDist[1],2));
+
+		if(cartDist[1]<0){
+			if(cartDist[1]!=0){
+				vector[1]= 180+(int)(PI*atan((float)cartDist[0]/cartDist[1]));
+			}
+			else{
+				vector[1]= 180+(int)(PI*atan((float)cartDist[0]/(cartDist[1]+1)));
+			}
+		}
+		else{
+			if(cartDist[1]!=0){
+				vector[1]= (360+(int)(PI*atan((float)cartDist[0]/cartDist[1])))%360;
+			}
+			else{
+				vector[1]= (360+(int)(PI*atan((float)cartDist[0]/(cartDist[1]+1))))%360;
+			}
+		}
+		vector[1]= (vector[1]+180)%360-180;
+	}
+	else{
+		vector[0]= 0;
+		vector[1]= 0;
+	}
 }

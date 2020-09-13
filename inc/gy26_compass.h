@@ -12,9 +12,11 @@ extern "C"{
 #include "stdio.h"
 #include "string.h"
 
+/*device address*/
 #define GY26_WR 0xE0
 #define GY26_RD 0xE1
 
+/*mode*/
 #define PRELIMINARY 0x00
 #define MEASURE_ANGLE 0x31
 #define START_CALIBRATION 0xC0
@@ -29,7 +31,12 @@ extern "C"{
 #define DECL_HIGH 0x03
 #define DECL_LOW 0xA4
 
+/*fungsi untuk reset kompas
+ * i2cx merupakan peripheral i2c yang digunakan untuk mengirim dan mnerima data*/
 void reset_gy26(I2C_TypeDef* I2Cx);
+
+/*fungsi untuk reset kompas
+ * i2cx merupakan peripheral i2c yang digunakan untuk mengirim dan mnerima data*/
 int get_angle(I2C_TypeDef* I2Cx);
 
 #ifdef __cplusplus
